@@ -42,11 +42,11 @@ export const STATUSES: RecordStatus[] = ['In Office', 'For Submission', 'Submitt
 export const FORM_STATUSES: RecordStatus[] = ['For Submission', 'Submitted'];
 
 /** The only two offices used by the system. */
-export const LOCATIONS = ['Pasalan Law Office', 'Main Office'];
+export const LOCATIONS = ['Palasan Law Office', 'Main Office'];
 
 /** Where a record physically sits depending on its status. */
 export function locationFor(status: RecordStatus, current = ''): string {
-  if (status === 'For Submission') return 'Pasalan Law Office';
+  if (status === 'For Submission') return 'Palasan Law Office';
   if (status === 'Submitted') return 'Main Office';
   // legacy "In Office" — keep the current location if still valid
   return LOCATIONS.includes(current) ? current : LOCATIONS[0];

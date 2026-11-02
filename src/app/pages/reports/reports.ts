@@ -135,7 +135,7 @@ export function buildMonthlyReport(
           <div class="report">
             <header class="rpt-head">
               <div>
-                <div class="rpt-office">{{ settings.settings.name || 'Pasalan Law Office' }}</div>
+                <div class="rpt-office">{{ settings.settings.name || 'Palasan Law Office' }}</div>
                 <div class="rpt-contact">{{ settings.settings.address }} &nbsp;·&nbsp; {{ settings.settings.contact }}</div>
               </div>
               <div class="rpt-right">
@@ -186,8 +186,7 @@ export function buildMonthlyReport(
                 </div>
               }
             </div>
-            <p class="day-caption">Bar height = number of documents notarized that day (peak: {{ report.maxDayCount }}).</p>
-
+            
             <h4 class="rpt-records-title">Records for {{ report.monthLabel }} {{ report.year }}</h4>
             <div class="table-wrap">
               <table class="table rows">

@@ -2,6 +2,10 @@
    NOTARIX — global design tokens & shared styles
    ============================================ */
 
+/* Professional typography:
+   Playfair Display for headings, Inter for all UI text. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
+
 :root {
   --navy: #163967;
   --navy-deep: #102b50;
@@ -9,8 +13,8 @@
   --gold: #c9a544;
   --gold-soft: #d5ae4f;
   --green-950: #10271f;
-  --green-900: #12332b;   /* sidebar */
-  --green-800: #1b4d3e;   /* primary buttons */
+  --green-900: #12332b; /* sidebar */
+  --green-800: #1b4d3e; /* primary buttons */
   --green-700: #226349;
   --ink: #22303f;
   --body-c: #55606b;
@@ -22,26 +26,50 @@
   --border-2: #eeeadd;
   --red: #b4483e;
   --shadow-card: 0 1px 2px rgba(16, 24, 32, .04), 0 10px 28px -18px rgba(16, 24, 32, .22);
+
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+
+html,
+body { height: 100%; }
 
 body {
   margin: 0;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
   background: var(--cream);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3, h4 { margin: 0; }
-p { margin: 0; }
-a { text-decoration: none; }
-button { font-family: inherit; cursor: pointer; }
+h1, h2, h3, h4 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.25;
+}
 
-.app-icon { display: inline-flex; align-items: center; justify-content: center; color: inherit; flex: none; }
+p { margin: 0; }
+
+a { text-decoration: none; color: inherit; }
+
+button, input, select, textarea { font-family: var(--font-body); }
+button { cursor: pointer; }
+
+.app-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  flex: none;
+}
 .app-icon svg { display: block; }
 
 /* ---------- buttons ---------- */
@@ -52,6 +80,7 @@ button { font-family: inherit; cursor: pointer; }
   gap: 8px;
   border-radius: 10px;
   padding: 10px 18px;
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 14px;
   border: 1px solid transparent;
@@ -81,11 +110,11 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--shadow-card);
 }
 .panel-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   color: var(--navy);
+  font-size: 20px;
 }
-.panel-title { font-size: 20px; }
 .panel-title.sm { font-size: 17px; }
 
 /* ---------- page header ---------- */
@@ -105,13 +134,19 @@ button { font-family: inherit; cursor: pointer; }
   background: linear-gradient(180deg, #ead9a8 0%, var(--gold) 55%, rgba(201, 165, 68, .12) 100%);
 }
 .page-head h1 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: clamp(25px, 2.4vw, 33px);
-  font-weight: 800;
+  font-weight: 700;
   color: var(--navy);
   line-height: 1.15;
 }
-.page-head p { margin-top: 8px; font-size: 15px; color: #64707c; }
+.page-head p {
+  margin-top: 8px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 400;
+  color: #64707c;
+}
 
 /* ---------- forms ---------- */
 .field {
@@ -120,8 +155,9 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid #dcd7c9;
   border-radius: 10px;
   background: #fff;
-  font-family: inherit;
+  font-family: var(--font-body);
   font-size: 14px;
+  font-weight: 400;
   color: var(--ink);
   outline: none;
   transition: border-color .15s ease, box-shadow .15s ease;
@@ -131,6 +167,7 @@ textarea.field { resize: vertical; }
 
 .lbl {
   display: block;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
   color: #3c4a58;
@@ -140,6 +177,7 @@ textarea.field { resize: vertical; }
 
 .f-label {
   display: block;
+  font-family: var(--font-body);
   font-size: 11px;
   letter-spacing: .09em;
   text-transform: uppercase;
@@ -147,12 +185,12 @@ textarea.field { resize: vertical; }
   font-weight: 600;
   margin: 14px 0 6px;
 }
-
 .invalid { border-color: var(--red) !important; }
 
 /* ---------- tables ---------- */
 .table { width: 100%; border-collapse: collapse; }
 .table th {
+  font-family: var(--font-body);
   font-size: 11px;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -164,16 +202,23 @@ textarea.field { resize: vertical; }
   white-space: nowrap;
 }
 .table td {
+  font-family: var(--font-body);
   padding: 14px 16px;
   border-top: 1px solid #f0ede2;
   font-size: 14px;
+  font-weight: 400;
   color: #3f4954;
   vertical-align: middle;
 }
 .table tbody tr:hover td { background: #fbfaf5; }
 .table .doc-no { color: var(--navy); font-weight: 700; }
 .table .cell-strong { color: #263444; font-weight: 700; }
-.table .serif-name { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; color: #263444; font-size: 15px; }
+.table .serif-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: #263444;
+  font-size: 15px;
+}
 .table .th-actions, .table td.td-actions { text-align: center; }
 .table .empty { text-align: center; padding: 34px 10px; color: var(--muted); }
 .table-wrap { overflow-x: auto; }
@@ -196,7 +241,14 @@ textarea.field { resize: vertical; }
 .icon-btn.danger:hover { background: #fbefee; border-color: #ecccc7; color: var(--red); }
 
 /* ---------- badges ---------- */
-.badge { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+}
 .badge-admin { background: var(--navy); color: #fff; }
 .badge-staff { background: #f3eddc; color: #6d6250; }
 
@@ -207,6 +259,7 @@ textarea.field { resize: vertical; }
   align-items: center;
   padding: 14px 16px;
   color: #6b7280;
+  font-family: var(--font-body);
   font-size: 13.5px;
   gap: 12px;
   flex-wrap: wrap;
@@ -220,6 +273,7 @@ textarea.field { resize: vertical; }
   border: 1px solid #e3ded0;
   background: #fff;
   color: #66707c;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
   display: inline-flex;
@@ -241,6 +295,7 @@ textarea.field { resize: vertical; }
   color: #eef2ec;
   padding: 13px 18px;
   border-radius: 12px;
+  font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
   display: flex;
@@ -250,7 +305,10 @@ textarea.field { resize: vertical; }
   animation: toast-in .25s ease;
 }
 .toast .app-icon { color: #8fd3a8; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
 
 /* ---------- print (report) ---------- */
 @media print {

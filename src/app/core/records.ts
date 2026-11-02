@@ -34,7 +34,7 @@ export class RecordsService {
    */
   private normalize(r: NotarizationRecord): NotarizationRecord {
     if (FORM_STATUSES.includes(r.status)) {
-      // For Submission → Pasalan Law Office · Submitted → Main Office
+      // For Submission → Palasan Law Office · Submitted → Main Office
       return { ...r, location: locationFor(r.status) };
     }
     // legacy "In Office" — keep its location only if it is still one of the valid offices
@@ -85,10 +85,30 @@ export class RecordsService {
   }
 
   /** Updates several records in one operation (bulk status/location change). */
-  bulkUpdate(ids: number[], patch: Partial<NotarizationRecord>): void {
-    this.records = this.records.map((r) => (ids.includes(r.id) ? this.normalize({ ...r, ...patch }) : r));
-    this.commit();
-  }
+  
+/** Updates several records in one operation. */
+bulkUpdate(ids: number[], patch: Partial<NotarizationRecord>): void {
+  this.records = this.records.map((r) => {
+    if (!ids.includes(r.id)) {
+      return r;
+    }
+
+    const updated = { ...r, ...patch };
+
+    if (patch.status !== undefined) {
+      return this.normalize(updated);
+    }
+
+    if (patch.location !== undefined) {
+      return updated;
+    }
+
+    return this.normalize(updated);
+  });
+
+  this.commit();
+}
+
 
   remove(id: number): void {
     this.records = this.records.filter((r) => r.id !== id);

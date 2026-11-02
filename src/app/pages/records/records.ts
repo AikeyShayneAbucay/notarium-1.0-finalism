@@ -39,12 +39,16 @@ interface RecordForm {
       <div class="toolbar no-print">
         <div class="rc-search">
           <ui-icon name="search" size="16" />
-          <input
-            name="recSearch"
-            placeholder="Search document number, client, or type"
-            [ngModel]="search"
-            (ngModelChange)="search = $event; page = 1"
-          />
+        
+
+<input
+  name="recSearch"
+  placeholder="Search document number, client, or type"
+  [ngModel]="search"
+  (input)="onSearchInput($event)"
+/>
+
+
         </div>
 
         <button class="btn btn-light" type="button" (click)="openFilter()">
@@ -62,13 +66,22 @@ interface RecordForm {
           <div class="bulk-bar">
             <span class="bulk-count">{{ selected.length }} selected</span>
             <select class="field bulk-status" name="bulkStatus" [ngModel]="bulkStatus" (ngModelChange)="bulkStatus = $event">
-              <option value="" disabled>Bulk update status…</option>
+              <option value="">Keep current status</option>
               @for (s of formStatuses; track s) {
                 <option [value]="s">{{ s }}</option>
               }
             </select>
-            <button class="btn btn-green" type="button" [disabled]="!bulkStatus" (click)="applyBulk()">
-              <ui-icon name="edit" size="15" /> Update Selected Records
+            <select class="field bulk-location" name="bulkLocation" [ngModel]="bulkLocation" (ngModelChange)="bulkLocation = $event" [disabled]="!!bulkStatus">
+              <option value="">Keep current location</option>
+              @for (l of locations; track l) {
+                <option [value]="l">{{ l }}</option>
+              }
+            </select>
+            <button class="btn btn-green" type="button" [disabled]="!bulkStatus && !bulkLocation" (click)="applyBulk()">
+              <ui-icon name="edit" size="15" /> Update Selected
+            </button>
+            <button class="btn btn-red" type="button" (click)="openBulkDelete()">
+              <ui-icon name="trash" size="15" /> Delete Selected
             </button>
             <button class="btn btn-light" type="button" (click)="clearSelection()">Clear</button>
           </div>
@@ -77,43 +90,46 @@ interface RecordForm {
         <div class="table-wrap">
           <table class="table">
             <thead>
-              <tr>
-                <th class="th-doc" title="Select all displayed records">
-                  <div class="doc-wrap head">
-                    <input
-                      type="checkbox"
-                      name="selAllPage"
-                      [ngModel]="allPageSelected"
-                      [indeterminate]="somePageSelected && !allPageSelected"
-                      (ngModelChange)="toggleAllPage($event)"
-                      [disabled]="pagedRows.length === 0"
-                    />
-                    <span>Doc No.</span>
-                  </div>
-                </th>
-                <th>Type</th>
-                <th title="Client Name">Client</th>
-                <th title="Date Notarized">Date</th>
-                <th>Status</th>
-                <th>Location</th>
-                <th class="th-actions">Actions</th>
-              </tr>
-            </thead>
+  <tr>
+    <th class="select-col">
+      <input
+        type="checkbox"
+        aria-label="Select all records on this page"
+        [checked]="allPageSelected"
+        [indeterminate]="somePageSelected && !allPageSelected"
+        (change)="toggleAllPage($any($event.target).checked)"
+        [disabled]="pagedRows.length === 0"
+      />
+    </th>
+    <th>Doc No.</th>
+    <th>Type</th>
+    <th>Client</th>
+    <th>Date</th>
+    <th>Status</th>
+    <th>Location</th>
+    <th class="th-actions">Actions</th>
+  </tr>
+</thead>
             <tbody>
               @for (r of pagedRows; track r.id) {
                 <tr [class.picked-row]="selected.includes(r.id)">
-                  <td class="td-doc">
-                    <div class="doc-wrap">
-                      <input
-                        type="checkbox"
-                        [attr.name]="'ck' + r.id"
-                        title="Select this record"
-                        [ngModel]="selected.includes(r.id)"
-                        (ngModelChange)="toggleRow($event, r.id)"
-                      />
-                      <b class="doc-no" [title]="r.clientName">{{ r.documentNo }}</b>
-                    </div>
-                  </td>
+  <td class="select-col">
+    
+<input
+  type="checkbox"
+  [attr.aria-label]="'Select record ' + r.documentNo"
+  [checked]="selected.includes(r.id)"
+  (click)="testCheckbox(r.id, $event)"
+/>
+
+  </td>
+
+  <td class="td-doc">
+    <b class="doc-no" [title]="r.clientName">
+      {{ r.documentNo }}
+    </b>
+  </td>
+
                   <td>{{ r.type }}</td>
                   <td>{{ r.clientName }}</td>
                   <td>{{ fmt(r.dateNotarized) }}</td>
@@ -166,7 +182,7 @@ interface RecordForm {
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="7" class="empty">No notarization records found.</td></tr>
+                <tr><td colspan="8" class="empty">No notarization records found.</td></tr>
               }
             </tbody>
           </table>
@@ -261,6 +277,14 @@ interface RecordForm {
         @if (submitted && !formValid) {
           <div class="form-error">Please fill in all required fields.</div>
         }
+
+        
+@if (hasDuplicateDocumentNo) {
+  <div class="form-error">
+    Document number already exists. Please enter a different document number.
+  </div>
+}
+
       </div>
 
       <ng-template #foot>
@@ -317,6 +341,18 @@ interface RecordForm {
       </ng-template>
     </ui-modal>
 
+    <!-- bulk delete confirm -->
+    <ui-modal [open]="bulkDeleteOpen" title="Delete Selected Records" width="440px" (close)="bulkDeleteOpen = false">
+      <p class="del-text">
+        Delete <b>{{ selected.length }} selected record{{ selected.length === 1 ? '' : 's' }}</b>?
+        This action cannot be undone.
+      </p>
+      <ng-template #foot>
+        <button class="btn btn-light" type="button" (click)="bulkDeleteOpen = false">Cancel</button>
+        <button class="btn btn-red" type="button" (click)="confirmBulkDelete()">Delete Selected</button>
+      </ng-template>
+    </ui-modal>
+
     <!-- delete confirm -->
     <ui-modal [open]="delRec !== null" title="Delete Record" width="440px" (close)="delRec = null">
       <p class="del-text">
@@ -349,6 +385,7 @@ interface RecordForm {
         background: #fff;
         transition: border-color 0.15s, box-shadow 0.15s;
       }
+      
       .rc-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201, 165, 68, 0.14); }
       .rc-search .app-icon { color: #97a0ac; }
       .rc-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: inherit; font-size: 13.5px; color: var(--ink); }
@@ -366,6 +403,28 @@ interface RecordForm {
         background: var(--gold);
         border: 2px solid #f4f1e9;
       }
+
+  
+.select-col {
+  width: 38px;
+  min-width: 38px;
+  text-align: center;
+  position: relative;
+  z-index: 20;
+}
+
+.select-col input[type='checkbox'] {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--navy);
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 21;
+  margin: 0;
+}
+
       .toolbar .btn { position: relative; }
 
       /* compact table so checkbox → action columns all fit on screen */
@@ -399,8 +458,8 @@ interface RecordForm {
 
       /* very narrow windows: fold the Type column away (still in View/Edit/search) */
       @media (max-width: 1020px) {
-        .table th:nth-of-type(2),
-        .table td:nth-of-type(2) { display: none; }
+        .table th:nth-of-type(3),
+        .table td:nth-of-type(3) { display: none; }
       }
 
       /* bulk bar shown above the table when records are selected */
@@ -416,7 +475,7 @@ interface RecordForm {
         margin: 0 12px 16px;
       }
       .bulk-count { font-size: 12.5px; font-weight: 600; color: #6b7280; min-width: 78px; }
-      .bulk-status { width: 220px; }
+      .bulk-status { width: 200px; }\n      .bulk-location { width: 220px; }
       .bulk-bar .field { padding: 8px 10px; font-size: 13px; height: 38px; }
 
       /* form */
@@ -486,9 +545,11 @@ export class Records implements OnInit {
   submitted = false;
   form: RecordForm = this.emptyForm();
 
-  /** selection ids + chosen bulk status, feeding the bulk bar above the table */
+  /** Selected record IDs and optional bulk status/location changes. */
   selected: number[] = [];
   bulkStatus: RecordStatus | '' = '';
+  bulkLocation = '';
+  bulkDeleteOpen = false;
 
   toast = signal<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -518,7 +579,7 @@ export class Records implements OnInit {
       clientName: '',
       dateNotarized: iso,
       status: 'For Submission',
-      location: locationFor('For Submission'), // → Pasalan Law Office
+      location: locationFor('For Submission'), // → Palasan Law Office
     };
   }
 
@@ -530,20 +591,55 @@ export class Records implements OnInit {
     return !!(this.form.documentNo.trim() && this.form.type && this.form.clientName.trim() && this.form.dateNotarized);
   }
 
+  
+get hasDuplicateDocumentNo(): boolean {
+  const documentNo = this.form.documentNo.trim().toLowerCase();
+
+  if (!documentNo) return false;
+
+  return this.rec.list().some(
+    (r) =>
+      r.documentNo.trim().toLowerCase() === documentNo &&
+      r.id !== this.form.id
+  );
+}
+
+
   fmt(iso: string): string {
     return fmtDate(iso);
   }
 
-  filteredRows(): NotarizationRecord[] {
-    const q = this.search.trim().toLowerCase();
-    return this.rec.list().filter((r) => {
-      const text = (r.documentNo + ' ' + r.clientName + ' ' + r.type).toLowerCase();
-      const okText = !q || text.includes(q);
-      const okType = !this.fType || r.type === this.fType;
-      const okStatus = !this.fStatus || r.status === this.fStatus;
-      return okText && okType && okStatus;
-    });
-  }
+  
+
+filteredRows(): NotarizationRecord[] {
+  const q = this.search.trim().toLowerCase();
+
+  return this.rec.list().filter((r) => {
+    const text = [
+      r.documentNo,
+      r.clientName,
+      r.type,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      text.includes(q) &&
+      (!this.fType || r.type === this.fType) &&
+      (!this.fStatus || r.status === this.fStatus)
+    );
+  });
+}
+
+
+
+onSearchInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  this.search = input.value;
+  this.page = 1;
+}
+
 
   get pagedRows(): NotarizationRecord[] {
     const rows = this.filteredRows();
@@ -597,6 +693,13 @@ export class Records implements OnInit {
   saveForm(): void {
     this.submitted = true;
     if (!this.formValid) return;
+
+    
+if (this.hasDuplicateDocumentNo) {
+  this.showToast('Document number already exists. Please use a different number.', true);
+  return;
+}
+
     const { id, ...rest } = this.form;
     // location is always a consequence of status — enforce the mapping here too
     rest.location = locationFor(rest.status, rest.location);
@@ -651,8 +754,23 @@ export class Records implements OnInit {
   }
 
   toggleRow(checked: boolean, id: number): void {
-    this.selected = checked ? [...this.selected, id] : this.selected.filter((x) => x !== id);
+    if (checked) {
+      if (!this.selected.includes(id)) {
+        this.selected = [...this.selected, id];
+      }
+    } else {
+      this.selected = this.selected.filter((x) => x !== id);
+    }
   }
+
+
+  
+testCheckbox(id: number, event: MouseEvent): void {
+  console.log('Angular checkbox handler:', id);
+
+  const checkbox = event.target as HTMLInputElement;
+  this.toggleRow(checkbox.checked, id);
+}
 
   /** Select-all applies to the records currently displayed on this page. */
   toggleAllPage(checked: boolean): void {
@@ -663,6 +781,28 @@ export class Records implements OnInit {
   clearSelection(): void {
     this.selected = [];
     this.bulkStatus = '';
+    this.bulkLocation = '';
+  }
+
+  openBulkDelete(): void {
+    if (this.selected.length === 0) {
+      this.showToast('Select at least one record first.', true);
+      return;
+    }
+    this.bulkDeleteOpen = true;
+  }
+
+  confirmBulkDelete(): void {
+    if (this.selected.length === 0) {
+      this.bulkDeleteOpen = false;
+      return;
+    }
+    const ids = [...this.selected];
+    ids.forEach((id) => this.rec.remove(id));
+    this.bulkDeleteOpen = false;
+    this.clearSelection();
+    this.showToast(`${ids.length} record${ids.length === 1 ? '' : 's'} deleted.`);
+    if (this.clampedPage > this.pageCount) this.page = this.pageCount;
   }
 
   /** Status choices for a row: legacy rows keep their current value selectable. */
@@ -686,19 +826,28 @@ export class Records implements OnInit {
     this.showToast('Location updated.');
   }
 
-  /** Bulk-update every selected record at once (location follows the status). */
+  /** Bulk-update selected records. A status change determines location automatically. */
   applyBulk(): void {
     if (this.selected.length === 0) {
       this.showToast('Select at least one record first.', true);
       return;
     }
-    if (!this.bulkStatus) {
-      this.showToast('Choose the new status for the bulk update.', true);
+    if (!this.bulkStatus && !this.bulkLocation) {
+      this.showToast('Choose a status or location to update.', true);
       return;
     }
+
     const ids = [...this.selected];
-    this.rec.bulkUpdate(ids, { status: this.bulkStatus });
-    this.showToast(`${ids.length} record${ids.length === 1 ? '' : 's'} updated — moved to ${locationFor(this.bulkStatus)}.`);
+
+    if (this.bulkStatus) {
+      const nextLocation = locationFor(this.bulkStatus);
+      this.rec.bulkUpdate(ids, { status: this.bulkStatus, location: nextLocation });
+      this.showToast(`${ids.length} record${ids.length === 1 ? '' : 's'} updated — status: ${this.bulkStatus}; location: ${nextLocation}.`);
+    } else {
+      this.rec.bulkUpdate(ids, { location: this.bulkLocation });
+      this.showToast(`${ids.length} record${ids.length === 1 ? '' : 's'} updated — location: ${this.bulkLocation}.`);
+    }
+
     this.clearSelection();
   }
 

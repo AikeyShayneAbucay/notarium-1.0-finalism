@@ -66,11 +66,7 @@ import { LogoMark } from '../../shared/logo';
 
           <p class="lgn-foot">Don't have an account? <b>Contact your admin.</b></p>
 
-          <div class="lgn-hint">
-            <b>Demo accounts</b>
-            <span>Admin — admin&#64;notarium.com / admin123</span>
-            <span>Staff — secretary&#64;notarium.com / staff123</span>
-          </div>
+         
         </form>
       </div>
     </div>

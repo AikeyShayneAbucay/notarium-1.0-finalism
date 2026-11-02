@@ -24,7 +24,6 @@ import { UiModal } from '../../shared/modal';
           <article class="stat is-total">
             <span class="stat-label">Total Records</span>
             <div class="stat-num">{{ vit().total }}</div>
-            <div class="stat-sub">This month</div>
           </article>
 
           <article class="stat">
@@ -157,7 +156,7 @@ import { UiModal } from '../../shared/modal';
 
       <aside class="dash-side">
         <section class="panel side-card">
-          <h3 class="panel-title sm">Quick Search &amp; Filters</h3>
+          <h3 class="panel-title sm">Quick Search and Filters</h3>
 
           <label class="f-label">Search</label>
           <div class="f-search">
