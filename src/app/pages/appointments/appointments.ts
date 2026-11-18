@@ -41,16 +41,22 @@ const STATUS_PILL: Record<AppointmentStatus, string> = {
           <input
             class="apt-search-input"
             name="aptSearch"
-            placeholder="Search reference no., client name, or Gmail…"
-            [(ngModel)]="search"
+            placeholder="Search client name, ref no, email, contact, service, date…"
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
           />
+          @if (search()) {
+            <button class="apt-search-clear" type="button" title="Clear search" (click)="search.set('')">
+              <ui-icon name="x" size="13" />
+            </button>
+          }
         </label>
         <div class="apt-tabs">
-          <button class="apt-tab" type="button" [class.on]="filter === 'All'" (click)="filter = 'All'">
+          <button class="apt-tab" type="button" [class.on]="filter() === 'All'" (click)="filter.set('All')">
             All <span class="apt-tab-count">{{ rows().length }}</span>
           </button>
           @for (s of statuses; track s) {
-            <button class="apt-tab" type="button" [class.on]="filter === s" (click)="filter = s">
+            <button class="apt-tab" type="button" [class.on]="filter() === s" (click)="filter.set(s)">
               {{ s }} <span class="apt-tab-count">{{ countByStatus(s) }}</span>
             </button>
           }
@@ -84,7 +90,15 @@ const STATUS_PILL: Record<AppointmentStatus, string> = {
               @if (loading()) {
                 <tr><td colspan="6" class="empty">Loading appointments…</td></tr>
               } @else if (filtered().length === 0) {
-                <tr><td colspan="6" class="empty">No appointment requests found.</td></tr>
+                <tr><td colspan="6" class="empty">
+                  @if (search()) {
+                    No appointments match "{{ search() }}".
+                  } @else if (filter() !== 'All') {
+                    No {{ filter() }} appointments found.
+                  } @else {
+                    No appointment requests found.
+                  }
+                </td></tr>
               } @else {
                 @for (a of filtered(); track a.id) {
                   <tr>
@@ -295,6 +309,22 @@ const STATUS_PILL: Record<AppointmentStatus, string> = {
         flex: 1;
       }
       .apt-search .app-icon { color: var(--muted); }
+      .apt-search-clear {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-full);
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+      .apt-search-clear:hover {
+        color: var(--red);
+        background: rgba(220, 38, 38, 0.08);
+      }
       .apt-search-input {
         flex: 1;
         min-width: 0;
@@ -429,8 +459,8 @@ export class AppointmentsPage implements OnInit {
   loading = signal(true);
   setupNotice = signal('');
 
-  search = '';
-  filter: 'All' | AppointmentStatus = 'All';
+  search = signal('');
+  filter = signal<'All' | AppointmentStatus>('All');
   readonly statuses = APPOINTMENT_STATUSES;
 
   pageError = signal('');
@@ -509,14 +539,23 @@ export class AppointmentsPage implements OnInit {
   }
 
   filtered = computed(() => {
-    const q = this.search.trim().toLowerCase();
+    const q = this.search().trim().toLowerCase();
+    const f = this.filter();
     return this.rows().filter((a) => {
-      if (this.filter !== 'All' && a.status !== this.filter) return false;
+      if (f !== 'All' && a.status !== f) return false;
       if (!q) return true;
+      const dateStr = this.fmtDate(a.appointmentDate).toLowerCase();
+      const rawDate = (a.appointmentDate || '').toLowerCase();
       return (
-        a.referenceNo.toLowerCase().includes(q) ||
-        a.clientName.toLowerCase().includes(q) ||
-        a.clientEmail.toLowerCase().includes(q)
+        (a.referenceNo || '').toLowerCase().includes(q) ||
+        (a.clientName || '').toLowerCase().includes(q) ||
+        (a.clientEmail || '').toLowerCase().includes(q) ||
+        (a.contactNumber || '').toLowerCase().includes(q) ||
+        (a.documentType || '').toLowerCase().includes(q) ||
+        (a.purpose || '').toLowerCase().includes(q) ||
+        (a.remarks || '').toLowerCase().includes(q) ||
+        dateStr.includes(q) ||
+        rawDate.includes(q)
       );
     });
   });
