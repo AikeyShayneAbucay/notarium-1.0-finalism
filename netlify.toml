@@ -7,7 +7,7 @@
   publish = "dist/notarix-palasan/browser"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24.15.0"
   NETLIFY_SKIP_PLUGINS = "@netlify/angular-runtime"
 
 # SPA fallback: direct navigation and page refresh work on every route.
