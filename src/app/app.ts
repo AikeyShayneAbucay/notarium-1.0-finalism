@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 
 /**
  * Root shell. Renders the routed NOTANIX application
- * (landing → login → dashboard / records / reports / admin pages).
+ * (login → dashboard / records / reports / admin pages).
  *
  * The previous "PeopleFlow" leave-management demo that lived here has been
  * preserved verbatim in src/app/legacy/peopleflow.* — it was blocking the

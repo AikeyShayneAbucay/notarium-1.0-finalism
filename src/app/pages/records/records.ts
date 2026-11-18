@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth';
 import { RecordsService } from '../../core/records';
+import { ActivityLogService } from '../../core/activity';
 import { DocTypesService } from '../../core/doctypes';
 import {
   FORM_STATUSES,
@@ -56,34 +57,54 @@ interface RecordForm {
           @if (fApplied) { <span class="filter-dot"></span> }
         </button>
 
+        <!-- Bulk Selection Toggle -->
+        @if (!selectionMode) {
+          <button class="btn btn-select" type="button" (click)="enterSelectionMode()">
+            <ui-icon name="check" size="14" /> Select
+          </button>
+        } @else {
+          <button class="btn btn-cancel-select" type="button" (click)="exitSelectionMode()">
+            <ui-icon name="x" size="14" /> Cancel Selection
+          </button>
+        }
+
         <button class="btn btn-green add-btn" type="button" (click)="openAdd()">
           <ui-icon name="plus" size="16" /> Add Record
         </button>
       </div>
 
       <section class="panel">
-        @if (selected.length > 0) {
+        @if (selectionMode && selected.length > 0) {
           <div class="bulk-bar">
-            <span class="bulk-count">{{ selected.length }} selected</span>
-            <select class="field bulk-status" name="bulkStatus" [ngModel]="bulkStatus" (ngModelChange)="bulkStatus = $event">
-              <option value="">Keep current status</option>
-              @for (s of formStatuses; track s) {
-                <option [value]="s">{{ s }}</option>
-              }
-            </select>
-            <select class="field bulk-location" name="bulkLocation" [ngModel]="bulkLocation" (ngModelChange)="bulkLocation = $event" [disabled]="!!bulkStatus">
-              <option value="">Keep current location</option>
-              @for (l of locations; track l) {
-                <option [value]="l">{{ l }}</option>
-              }
-            </select>
-            <button class="btn btn-green" type="button" [disabled]="!bulkStatus && !bulkLocation" (click)="applyBulk()">
-              <ui-icon name="edit" size="15" /> Update Selected
-            </button>
-            <button class="btn btn-red" type="button" (click)="openBulkDelete()">
-              <ui-icon name="trash" size="15" /> Delete Selected
-            </button>
-            <button class="btn btn-light" type="button" (click)="clearSelection()">Clear</button>
+            <div class="bulk-bar-left">
+              <div class="bulk-sel-badge">
+                <ui-icon name="check" size="13" />
+                <span>{{ selected.length }} record{{ selected.length === 1 ? '' : 's' }} selected</span>
+              </div>
+            </div>
+            <div class="bulk-bar-actions">
+              <select class="field bulk-status" name="bulkStatus" [ngModel]="bulkStatus" (ngModelChange)="bulkStatus = $event">
+                <option value="">Change status…</option>
+                @for (s of formStatuses; track s) {
+                  <option [value]="s">{{ s }}</option>
+                }
+              </select>
+              <select class="field bulk-location" name="bulkLocation" [ngModel]="bulkLocation" (ngModelChange)="bulkLocation = $event" [disabled]="!!bulkStatus">
+                <option value="">Change location…</option>
+                @for (l of locations; track l) {
+                  <option [value]="l">{{ l }}</option>
+                }
+              </select>
+              <button class="btn btn-green" type="button" [disabled]="!bulkStatus && !bulkLocation" (click)="applyBulk()">
+                <ui-icon name="edit" size="14" /> Update
+              </button>
+              <button class="btn btn-red" type="button" (click)="openBulkDelete()">
+                <ui-icon name="trash" size="14" /> Delete
+              </button>
+              <button class="btn btn-light bulk-clear-btn" type="button" (click)="clearSelection()">
+                Clear
+              </button>
+            </div>
           </div>
         }
 
@@ -91,16 +112,18 @@ interface RecordForm {
           <table class="table">
             <thead>
   <tr>
-    <th class="select-col">
-      <input
-        type="checkbox"
-        aria-label="Select all records on this page"
-        [checked]="allPageSelected"
-        [indeterminate]="somePageSelected && !allPageSelected"
-        (change)="toggleAllPage($any($event.target).checked)"
-        [disabled]="pagedRows.length === 0"
-      />
-    </th>
+    @if (selectionMode) {
+      <th class="select-col">
+        <input
+          type="checkbox"
+          aria-label="Select all records on this page"
+          [checked]="allPageSelected"
+          [indeterminate]="somePageSelected && !allPageSelected"
+          (change)="toggleAllPage($any($event.target).checked)"
+          [disabled]="pagedRows.length === 0"
+        />
+      </th>
+    }
     <th>Doc No.</th>
     <th>Type</th>
     <th>Client</th>
@@ -112,17 +135,17 @@ interface RecordForm {
 </thead>
             <tbody>
               @for (r of pagedRows; track r.id) {
-                <tr [class.picked-row]="selected.includes(r.id)">
-  <td class="select-col">
-    
-<input
-  type="checkbox"
-  [attr.aria-label]="'Select record ' + r.documentNo"
-  [checked]="selected.includes(r.id)"
-  (click)="testCheckbox(r.id, $event)"
-/>
-
-  </td>
+                <tr [class.picked-row]="selectionMode && selected.includes(r.id)" (click)="selectionMode && toggleRowClick(r.id, $event)">
+  @if (selectionMode) {
+    <td class="select-col" (click)="$event.stopPropagation()">
+      <input
+        type="checkbox"
+        [attr.aria-label]="'Select record ' + r.documentNo"
+        [checked]="selected.includes(r.id)"
+        (click)="testCheckbox(r.id, $event)"
+      />
+    </td>
+  }
 
   <td class="td-doc">
     <b class="doc-no" [title]="r.clientName">
@@ -182,7 +205,7 @@ interface RecordForm {
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="8" class="empty">No notarization records found.</td></tr>
+                <tr><td [attr.colspan]="selectionMode ? 8 : 7" class="empty">No notarization records found.</td></tr>
               }
             </tbody>
           </table>
@@ -209,15 +232,37 @@ interface RecordForm {
     <ui-modal [open]="formOpen" [title]="form.id ? 'Edit Record' : 'New Notarization Record'" width="560px" (close)="closeForm()">
       <div class="form-grid">
         <div class="fg">
-          <label class="lbl">Document No.<span class="lbl-req">*</span></label>
-          <input
-            class="field"
-            name="fdoc"
-            placeholder="e.g. 2026-0001 or N-042"
-            [ngModel]="form.documentNo"
-            (ngModelChange)="form.documentNo = $event"
-            [class.invalid]="submitted && !form.documentNo.trim()"
-          />
+          <label class="lbl">
+            Document No.<span class="lbl-req">*</span>
+            @if (!form.id) {
+              <span class="badge-auto-doc">Auto-Generated</span>
+            }
+          </label>
+          <div class="doc-input-wrap">
+            <input
+              class="field"
+              name="fdoc"
+              placeholder="e.g. 2026-0001"
+              [ngModel]="form.documentNo"
+              (ngModelChange)="form.documentNo = $event"
+              [readonly]="!form.id"
+              [class.is-auto]="!form.id"
+              [class.invalid]="submitted && !form.documentNo.trim()"
+            />
+            @if (!form.id) {
+              <button
+                type="button"
+                class="btn-doc-refresh"
+                (click)="regenerateDocNo()"
+                title="Refresh next available document number"
+              >
+                <ui-icon name="history" size="14" />
+              </button>
+            }
+          </div>
+          @if (!form.id) {
+            <small class="field-hint">Shared legal sequence for Palasan Law Office ({{ currentYear }}).</small>
+          }
         </div>
 
         <div class="fg">
@@ -462,24 +507,170 @@ interface RecordForm {
         .table td:nth-of-type(3) { display: none; }
       }
 
-      /* bulk bar shown above the table when records are selected */
+      /* ── Bulk Selection Button ── */
+      .btn-select {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 42px;
+        padding: 0 16px;
+        border: 1.5px solid var(--navy);
+        background: #ffffff;
+        color: var(--navy);
+        font-size: 13.5px;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+      }
+      .btn-select:hover {
+        background: var(--navy);
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(23,72,58,0.18);
+      }
+
+      .btn-cancel-select {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 42px;
+        padding: 0 16px;
+        border: 1.5px solid #d1d5db;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: 13.5px;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+      }
+      .btn-cancel-select:hover {
+        background: #f1f5f9;
+        border-color: #9ca3af;
+        color: #374151;
+      }
+
+      /* ── Bulk Action Bar ── */
       .bulk-bar {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 12px;
         flex-wrap: wrap;
-        background: #fbf8ee;
-        border: 1px solid #eee7d2;
-        border-radius: 10px;
-        padding: 10px 12px;
-        margin: 0 12px 16px;
+        background: linear-gradient(135deg, #f9f6ea 0%, #fdfbf3 100%);
+        border: 1.5px solid #e5d99a;
+        border-radius: 12px;
+        padding: 10px 16px;
+        margin: 0 0 14px;
+        box-shadow: 0 2px 8px rgba(201,165,68,0.10);
+        animation: slideDown 0.18s ease;
       }
-      .bulk-count { font-size: 12.5px; font-weight: 600; color: #6b7280; min-width: 78px; }
-      .bulk-status { width: 200px; }\n      .bulk-location { width: 220px; }
-      .bulk-bar .field { padding: 8px 10px; font-size: 13px; height: 38px; }
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      .bulk-bar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .bulk-sel-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: var(--navy);
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 5px 13px 5px 10px;
+        border-radius: 20px;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+      }
+      .bulk-sel-badge .app-icon { opacity: 0.85; }
+
+      .bulk-bar-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .bulk-status { width: 180px; }
+      .bulk-location { width: 190px; }
+      .bulk-bar .field { padding: 7px 10px; font-size: 13px; height: 38px; }
+
+      .bulk-clear-btn {
+        font-size: 13px;
+        padding: 0 12px;
+        height: 38px;
+        color: #64748b;
+      }
+      .bulk-clear-btn:hover { color: var(--navy); }
+
+      /* ── Selected row highlight ── */
+      .picked-row td { background: #fdf8e1 !important; border-color: #f0e09a !important; }
+      .picked-row:hover td { background: #fbf3cc !important; }
+
+      /* ── Selection mode: cursor pointer on rows ── */
+      tr.selectable-row { cursor: pointer; }
 
       /* form */
       .form-grid { display: grid; gap: 16px; }
+      .badge-auto-doc {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: var(--radius-full);
+        background: var(--green-surface);
+        color: var(--green-800);
+        border: 1px solid var(--green-border);
+        text-transform: none;
+      }
+      .doc-input-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .field.is-auto {
+        background: #f8fafc;
+        color: var(--navy);
+        font-family: var(--font-mono);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        cursor: default;
+      }
+      .btn-doc-refresh {
+        position: absolute;
+        right: 8px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        color: var(--muted);
+        transition: all 0.15s ease;
+      }
+      .btn-doc-refresh:hover {
+        color: var(--navy);
+        border-color: var(--border-strong);
+        background: #f1f5f9;
+      }
+      .field-hint {
+        display: block;
+        margin-top: 4px;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
       .fg-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
       .field-locked { background: #f4f1e9; color: #5a6470; cursor: not-allowed; }
       .form-error {
@@ -515,6 +706,7 @@ interface RecordForm {
 })
 export class Records implements OnInit {
   rec = inject(RecordsService);
+  private activity = inject(ActivityLogService);
   private dts = inject(DocTypesService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -545,6 +737,9 @@ export class Records implements OnInit {
   submitted = false;
   form: RecordForm = this.emptyForm();
 
+  /** Bulk selection mode — false by default; enabled by clicking "Select" button */
+  selectionMode = false;
+
   /** Selected record IDs and optional bulk status/location changes. */
   selected: number[] = [];
   bulkStatus: RecordStatus | '' = '';
@@ -574,7 +769,7 @@ export class Records implements OnInit {
     const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
     return {
       id: null,
-      documentNo: '',
+      documentNo: this.rec.nextDocumentNo(),
       type: '',
       clientName: '',
       dateNotarized: iso,
@@ -674,10 +869,27 @@ onSearchInput(event: Event): void {
   }
 
   // ----- modals -----
+  get currentYear(): number {
+    return new Date().getFullYear();
+  }
+
   openAdd(): void {
     this.form = this.emptyForm();
+    this.form.documentNo = this.rec.nextDocumentNo();
     this.submitted = false;
     this.formOpen = true;
+
+    // Refresh from database in background to avoid any stale sequence
+    this.rec.syncFromSupabase().then(() => {
+      if (this.formOpen && !this.form.id) {
+        this.form.documentNo = this.rec.nextDocumentNo();
+      }
+    });
+  }
+
+  regenerateDocNo(): void {
+    this.form.documentNo = this.rec.nextDocumentNo();
+    this.showToast('Document number refreshed: ' + this.form.documentNo);
   }
 
   openEdit(r: NotarizationRecord): void {
@@ -692,24 +904,31 @@ onSearchInput(event: Event): void {
 
   saveForm(): void {
     this.submitted = true;
+
+    if (!this.form.id) {
+      if (!this.form.documentNo.trim() || this.hasDuplicateDocumentNo) {
+        this.form.documentNo = this.rec.nextDocumentNo();
+      }
+    } else {
+      if (this.hasDuplicateDocumentNo) {
+        this.showToast('Document number already exists. Please use a different number.', true);
+        return;
+      }
+    }
+
     if (!this.formValid) return;
 
-    
-if (this.hasDuplicateDocumentNo) {
-  this.showToast('Document number already exists. Please use a different number.', true);
-  return;
-}
-
     const { id, ...rest } = this.form;
-    // location is always a consequence of status — enforce the mapping here too
     rest.location = locationFor(rest.status, rest.location);
     if (id) {
       this.rec.update(id, rest);
+      this.activity.log('Updated a notarization record', 'Updated record ' + rest.documentNo + ' · ' + rest.type + ' (' + rest.clientName + ')');
       this.showToast('Record updated.');
     } else {
-      this.rec.add(rest);
+      const added = this.rec.add(rest);
+      this.activity.log('Added a new notarization record', 'Document No: ' + added.documentNo + ' · ' + added.type + ' (' + added.clientName + ')');
       this.page = 1;
-      this.showToast('New record added.');
+      this.showToast('New record added (' + added.documentNo + ').');
     }
     this.formOpen = false;
   }
@@ -776,6 +995,30 @@ testCheckbox(id: number, event: MouseEvent): void {
   toggleAllPage(checked: boolean): void {
     const ids = this.pagedRows.map((r) => r.id);
     this.selected = checked ? [...new Set([...this.selected, ...ids])] : this.selected.filter((id) => !ids.includes(id));
+  }
+
+  /** Enter bulk selection mode. */
+  enterSelectionMode(): void {
+    this.selectionMode = true;
+    this.selected = [];
+    this.bulkStatus = '';
+    this.bulkLocation = '';
+  }
+
+  /** Exit bulk selection mode and reset everything. */
+  exitSelectionMode(): void {
+    this.selectionMode = false;
+    this.selected = [];
+    this.bulkStatus = '';
+    this.bulkLocation = '';
+  }
+
+  /** Toggle a row when the whole row is clicked in selection mode. */
+  toggleRowClick(id: number, event: MouseEvent): void {
+    // Don't interfere with action buttons / dropdowns inside the row
+    const target = event.target as HTMLElement;
+    if (target.closest('button, select, a, input')) return;
+    this.toggleRow(!this.selected.includes(id), id);
   }
 
   clearSelection(): void {

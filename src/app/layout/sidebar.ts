@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../core/auth';
+import { ActivityLogService } from '../core/activity';
 import { UiIcon } from '../shared/icon';
 
 @Component({
@@ -31,6 +32,15 @@ import { UiIcon } from '../shared/icon';
           <a class="sb-item" [routerLink]="item.link" routerLinkActive="on">
             <ui-icon [name]="item.icon" size="19" />
             <span>{{ item.label }}</span>
+          </a>
+        }
+
+
+        <!-- Document Types: shown for Secretary only (Admin sees it under Administration) -->
+        @if (!auth.isAdmin()) {
+          <a class="sb-item" routerLink="/document-types" routerLinkActive="on">
+            <ui-icon name="bank" size="19" />
+            <span>Document Types</span>
           </a>
         }
 
@@ -127,6 +137,7 @@ import { UiIcon } from '../shared/icon';
       }
       .sb-logout:hover { color: #fff; }
 
+
       /* narrow windows: slide the rail away when the layout closes it */
       .sb { transition: transform 0.25s ease; }
       @media (max-width: 1140px) {
@@ -137,18 +148,19 @@ import { UiIcon } from '../shared/icon';
 })
 export class Sidebar {
   auth = inject(AuthService);
+  private activity = inject(ActivityLogService);
   private router = inject(Router);
 
   nav = [
     { label: 'Dashboard', link: '/dashboard', icon: 'grid' },
     { label: 'Notarization Records', link: '/records', icon: 'file' },
     { label: 'Reports', link: '/reports', icon: 'chart' },
+    { label: 'Activity Log', link: '/activity-log', icon: 'list' },
   ];
 
   adminNav = [
     { label: 'Staff Accounts', link: '/staff', icon: 'users' },
     { label: 'Document Types', link: '/document-types', icon: 'bank' },
-    { label: 'Office Settings', link: '/settings', icon: 'gear' },
   ];
 
   logout(): void {

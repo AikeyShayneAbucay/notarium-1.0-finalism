@@ -2,6 +2,7 @@ import { Component, ElementRef, OnInit, inject } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../core/auth';
+import { ActivityLogService } from '../core/activity';
 import { initialsOf } from '../core/models';
 import { UiIcon } from '../shared/icon';
 
@@ -173,6 +174,7 @@ import { UiIcon } from '../shared/icon';
 })
 export class Topbar implements OnInit {
   auth = inject(AuthService);
+  private activity = inject(ActivityLogService);
   private router = inject(Router);
 
   title = '';

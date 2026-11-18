@@ -10,14 +10,16 @@ import { UiIcon } from './icon';
       .ov {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 32, 0.45);
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(4px);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 60;
         padding: 20px;
-        animation: ov-in 0.18s ease;
+        animation: ov-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       }
+
       @keyframes ov-in {
         from {
           opacity: 0;
@@ -26,68 +28,82 @@ import { UiIcon } from './icon';
           opacity: 1;
         }
       }
+
       .box {
-        background: #fff;
-        border-radius: 16px;
-        box-shadow: 0 24px 64px -16px rgba(15, 23, 32, 0.35);
+        background: #ffffff;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-modal);
+        border: 1px solid var(--border);
         width: 100%;
         overflow: hidden;
-        animation: box-in 0.2s ease;
+        animation: box-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         max-height: calc(100vh - 40px);
         display: flex;
         flex-direction: column;
       }
+
       @keyframes box-in {
         from {
           opacity: 0;
-          transform: translateY(10px) scale(0.98);
+          transform: translateY(12px) scale(0.97);
         }
         to {
           opacity: 1;
           transform: none;
         }
       }
+
       @media (max-width: 600px) {
         .box {
           max-width: calc(100vw - 32px) !important;
         }
       }
+
       .head {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 17px 20px;
-        border-bottom: 1px solid #f0ede3;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #ffffff;
         flex: none;
       }
+
       .title {
-        font-family: 'Playfair Display', Georgia, serif;
+        font-family: var(--font-heading);
         font-weight: 700;
-        font-size: 18px;
-        color: #1f3a5f;
+        font-size: 19px;
+        color: var(--navy);
+        letter-spacing: -0.01em;
       }
+
       .x {
         width: 32px;
         height: 32px;
         border: 0;
         background: transparent;
-        border-radius: 9px;
-        color: #8a8f98;
+        border-radius: var(--radius-xs);
+        color: var(--muted);
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        transition: all 0.15s ease;
       }
+
       .x:hover {
-        background: #f4f1e9;
-        color: #22303f;
+        background: #f1f5f9;
+        color: var(--ink);
       }
+
       .bd {
-        padding: 20px;
+        padding: 22px 24px;
         overflow-y: auto;
       }
+
       .ft {
-        padding: 15px 20px;
-        border-top: 1px solid #f0ede3;
+        padding: 16px 24px;
+        border-top: 1px solid var(--border);
+        background: #f8fafc;
         display: flex;
         justify-content: flex-end;
         gap: 10px;

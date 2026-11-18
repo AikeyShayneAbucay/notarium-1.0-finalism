@@ -11,16 +11,21 @@ import { Topbar } from './topbar';
     <button
       class="nav-toggle"
       type="button"
-      title="Show / hide menu"
+      title="Toggle Navigation Menu"
       [attr.aria-expanded]="navOpen()"
       (click)="navOpen.set(!navOpen())"
     >
-      <ui-icon name="grid" size="18" />
+      <ui-icon [name]="navOpen() ? 'close' : 'grid'" size="18" />
     </button>
+
+    @if (navOpen()) {
+      <div class="sidebar-backdrop" (click)="navOpen.set(false)"></div>
+    }
+
     <div class="shell" [class.nav-closed]="!navOpen()">
       <app-sidebar [class.sb-closed]="!navOpen()" />
       <div class="shell-main">
-      <app-topbar [class.tb-shifted]="!navOpen()" />
+        <app-topbar [class.tb-shifted]="!navOpen()" />
         <main class="shell-content">
           <router-outlet />
         </main>
@@ -29,40 +34,83 @@ import { Topbar } from './topbar';
   `,
   styles: [
     `
-      .shell { min-height: 100vh; }
-      .shell-main { margin-left: 270px; min-height: 100vh; display: flex; flex-direction: column; }
-      .shell-content { padding: 30px 34px 52px; flex: 1; }
+      .shell {
+        min-height: 100vh;
+        background: var(--cream);
+      }
+
+      .shell-main {
+        margin-left: 270px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        transition: margin-left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .shell-content {
+        padding: 30px 36px 56px;
+        flex: 1;
+        max-width: 1600px;
+        width: 100%;
+        box-sizing: border-box;
+      }
 
       .nav-toggle {
         display: none;
         position: fixed;
-        top: 15px;
-        left: 15px;
+        top: 13px;
+        left: 14px;
         z-index: 75;
-        width: 42px;
-        height: 42px;
+        width: 38px;
+        height: 38px;
         align-items: center;
         justify-content: center;
-        border-radius: 11px;
+        border-radius: var(--radius-sm);
         background: #12332b;
-        border: 1px solid #33594b;
-        color: #e8c266;
+        border: 1px solid rgba(213, 174, 79, 0.4);
+        color: var(--gold-soft);
         cursor: pointer;
-        box-shadow: 0 10px 26px -12px rgba(18, 51, 43, 0.65);
+        box-shadow: 0 4px 14px rgba(10, 31, 24, 0.4);
+        transition: all 0.15s ease;
       }
 
-      /* Narrow windows (incl. high Windows display scaling): the sidebar
-         slides away so record tables get full width; the button brings it back. */
+      .nav-toggle:hover {
+        background: #17483a;
+        transform: scale(1.02);
+      }
+
+      .sidebar-backdrop {
+        display: none;
+      }
+
       @media (max-width: 1140px) {
-        .shell-main { margin-left: 0 !important; }
-        .nav-toggle { display: flex; }
-        app-sidebar { transition: transform 0.25s ease; }
-        .nav-closed app-sidebar { transform: translateX(-104%); }
+        .shell-main {
+          margin-left: 0 !important;
+        }
+        .nav-toggle {
+          display: flex;
+        }
+        .sidebar-backdrop {
+          display: block;
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.5);
+          backdrop-filter: blur(2px);
+          z-index: 25;
+          animation: fade-in 0.2s ease;
+        }
+        .shell-content {
+          padding: 22px 20px 44px;
+        }
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
     `,
   ],
 })
 export class Layout {
-  /** closed by default on narrow windows; wide desktops always show it (CSS-driven) */
   navOpen = signal(false);
 }

@@ -4,6 +4,7 @@ import { AuthService } from '../../core/auth';
 import { RecordsService } from '../../core/records';
 import { DocTypesService } from '../../core/doctypes';
 import { SettingsService } from '../../core/settings';
+import { ActivityLogService } from '../../core/activity';
 import { MONTH_NAMES, RecordStatus, STATUSES, fmtDate } from '../../core/models';
 import { downloadCsv } from '../../shared/csv';
 import { UiIcon } from '../../shared/icon';
@@ -375,6 +376,7 @@ export class Reports {
   private rec = inject(RecordsService);
   private dts = inject(DocTypesService);
   settings = inject(SettingsService);
+  private activity = inject(ActivityLogService);
 
   monthNames = MONTH_NAMES;
   now = new Date();

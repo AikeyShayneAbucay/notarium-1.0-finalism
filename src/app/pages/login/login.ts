@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth';
+import { ActivityLogService } from '../../core/activity';
 import { UiIcon } from '../../shared/icon';
 import { LogoMark } from '../../shared/logo';
 
@@ -232,6 +233,7 @@ import { LogoMark } from '../../shared/logo';
 })
 export class Login {
   private auth = inject(AuthService);
+  private activity = inject(ActivityLogService);
   private router = inject(Router);
 
   email = '';

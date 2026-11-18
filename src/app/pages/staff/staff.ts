@@ -122,24 +122,65 @@ import { UiModal } from '../../shared/modal';
   `,
   styles: [
     `
-      .mb-btn { margin: 0 0 22px; }
-      .num-col { width: 56px; }
-      .idx { color: #8a8f98; }
-      .muted { color: #8a8f98; font-size: 13.5px; }
+      .mb-btn {
+        margin: 0 0 24px;
+        height: 40px;
+      }
 
-      .form-grid { display: grid; gap: 16px; }
-      .role-note { font-size: 13px; color: #6b7280; }
-      .role-note b { color: #3c4a58; }
+      .num-col {
+        width: 60px;
+        text-align: center;
+      }
+
+      .idx {
+        color: var(--muted);
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+        font-style: italic;
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .role-note {
+        font-size: 13px;
+        color: var(--body-c);
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        line-height: 1.5;
+      }
+
+      .role-note b {
+        color: var(--navy);
+      }
+
       .form-error {
         font-size: 13px;
-        color: #b4483e;
-        background: #fdeeee;
-        border: 1px solid #f2cfcf;
-        border-radius: 9px;
-        padding: 9px 12px;
+        color: var(--red);
+        background: var(--red-surface);
+        border: 1px solid var(--red-border);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        font-weight: 500;
       }
-      .del-text { font-size: 14.5px; color: #3f4954; line-height: 1.6; }
-    `,
+
+      .del-text {
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.6;
+        margin: 4px 0;
+      }
+    `
   ],
 })
 export class Staff {

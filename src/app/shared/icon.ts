@@ -78,6 +78,26 @@ const ICONS: Record<string, Prim[]> = {
     { d: 'M7 3v5h8' },
   ],
   building: [{ d: 'M3 21h18' }, { d: 'M9 21v-6h6v6' }, { d: 'M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16' }],
+  // Lucide 'landmark' — classical columns icon (court / law office)
+  landmark: [
+    { d: 'M3 22h18' },
+    { d: 'M6 18V11' },
+    { d: 'M10 18V11' },
+    { d: 'M14 18V11' },
+    { d: 'M18 18V11' },
+    { d: 'M2 11l10-7 10 7' },
+  ],
+  // Lucide 'list' — three rows with leading dots, matches clipboard-list style
+  list: [
+    { d: 'M8 6h13' },
+    { d: 'M8 12h13' },
+    { d: 'M8 18h13' },
+    { d: 'M3 6h.01' },
+    { d: 'M3 12h.01' },
+    { d: 'M3 18h.01' },
+  ],
+  // Lucide 'x' — close / cancel icon
+  x: [{ d: 'M18 6L6 18' }, { d: 'M6 6l12 12' }],
 };
 
 @Component({

@@ -84,26 +84,60 @@ import { UiModal } from '../../shared/modal';
         display: flex;
         gap: 12px;
         align-items: center;
-        padding: 18px 20px;
+        padding: 18px 22px;
         margin-bottom: 24px;
         flex-wrap: wrap;
       }
-      .dt-input { flex: 1; min-width: 240px; height: 42px; }
-      .dt-bar .btn { height: 42px; }
+
+      .dt-input {
+        flex: 1;
+        min-width: 260px;
+        height: 40px;
+      }
+
+      .dt-bar .btn {
+        height: 40px;
+      }
+
       .dt-error {
-        margin: -14px 0 18px;
+        margin: -14px 0 20px;
         font-size: 13px;
-        color: #b4483e;
-        background: #fdeeee;
-        border: 1px solid #f2cfcf;
-        border-radius: 9px;
-        padding: 9px 14px;
+        color: var(--red);
+        background: var(--red-surface);
+        border: 1px solid var(--red-border);
+        border-radius: var(--radius-sm);
+        padding: 10px 16px;
+        font-weight: 500;
         display: inline-block;
       }
-      .rec-count { color: #6b7280; font-size: 13.5px; }
-      .in-use { color: #98a0aa; font-size: 13.5px; }
-      .del-text { font-size: 14.5px; color: #3f4954; line-height: 1.6; }
-    `,
+
+      .rec-count {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .in-use {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: var(--radius-full);
+        background: #f1f5f9;
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .del-text {
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.6;
+        margin: 4px 0;
+      }
+    `
   ],
 })
 export class DocTypes {

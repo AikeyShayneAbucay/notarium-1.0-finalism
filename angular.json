@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "notarix-pasalan": {
+    "notarix-palasan": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:class": {
@@ -59,8 +59,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -73,7 +73,13 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -82,10 +88,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "notarix-pasalan:build:production"
+              "buildTarget": "notarix-palasan:build:production"
             },
             "development": {
-              "buildTarget": "notarix-pasalan:build:development"
+              "buildTarget": "notarix-palasan:build:development"
             }
           },
           "defaultConfiguration": "development"
