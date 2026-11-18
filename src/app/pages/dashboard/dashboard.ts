@@ -1,9 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth';
 import { RecordsService } from '../../core/records';
 import { DocTypesService } from '../../core/doctypes';
+import { AppointmentsService, Appointment } from '../../core/appointments';
 import { NotarizationRecord, fmtDate, monthYearLabel, MONTH_NAMES } from '../../core/models';
 import { UiIcon } from '../../shared/icon';
 
@@ -35,16 +36,16 @@ interface StatusSlice {
   dashoffset: string;
 }
 
-interface BarItem {
-  name: string;
-  total: number;
-  submitted: number;
-  x1: number;
-  x2: number;
-  y1: number;
-  y2: number;
-  h1: number;
-  h2: number;
+export interface MonthlyAppointmentBar {
+  monthIndex: number;
+  monthName: string;
+  fullName: string;
+  count: number;
+  pct: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -339,57 +340,114 @@ const TYPE_COLORS = [
           </div>
         </article>
 
-        <!-- Monthly Performance Bar Chart (Dark Green & Gold) -->
-        <article class="panel card-performance">
+        <!-- Monthly Appointments Graph (Real Supabase Data) -->
+        <article class="panel card-appointments">
           <div class="panel-head">
-            <div class="ph-title">
-              <ui-icon name="grid" size="18" />
-              <h2>Monthly Performance</h2>
+            <div class="ph-title-wrap">
+              <div class="ph-title">
+                <ui-icon name="calendar" size="18" />
+                <h2>Monthly Appointments</h2>
+              </div>
+              <p class="panel-sub">Overview of appointment requests received throughout the year.</p>
             </div>
-            <div class="chart-legend sm">
-              <span class="legend-item"><i class="dot dot-bar-total"></i> Total</span>
-              <span class="legend-item"><i class="dot dot-bar-sub"></i> Submitted</span>
+            <div class="ph-actions">
+              <span class="apt-year-badge">
+                <b>{{ totalYearAppointments() }}</b> Total
+              </span>
+              <select
+                class="timeframe-select"
+                [ngModel]="selectedYear()"
+                (ngModelChange)="selectedYear.set(+$event)"
+              >
+                @for (y of availableYears(); track y) {
+                  <option [value]="y">
+                    {{ y === currentCalendarYear ? 'Current Year (' + y + ')' : y === currentCalendarYear - 1 ? 'Previous Year (' + y + ')' : y }}
+                  </option>
+                }
+              </select>
             </div>
           </div>
 
-          <div class="chart-wrap bar-wrap">
-            <svg viewBox="0 0 340 190" class="svg-bar-chart" preserveAspectRatio="none">
-              <!-- Y-Axis Grid Lines -->
-              @for (tick of barYAxisTicks; track tick.y) {
-                <line x1="28" [attr.y1]="tick.y" x2="330" [attr.y2]="tick.y" stroke="#f1f5f9" stroke-width="1" />
-                <text x="22" [attr.y]="tick.y + 4" text-anchor="end" class="chart-tick-text">{{ tick.val }}</text>
+          <div class="chart-wrap apt-chart-wrap">
+            @if (aptLoading()) {
+              <div class="chart-state-msg">Loading appointments data…</div>
+            } @else if (aptError()) {
+              <div class="chart-state-msg error">{{ aptError() }}</div>
+            } @else {
+              @if (totalYearAppointments() === 0) {
+                <div class="chart-empty-overlay">
+                  <p>No appointment requests recorded for {{ selectedYear() }}.</p>
+                </div>
               }
+              <svg viewBox="0 0 540 195" class="svg-apt-chart" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="aptBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#17483a" />
+                    <stop offset="100%" stop-color="#246a56" />
+                  </linearGradient>
+                  <linearGradient id="aptBarHoverGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#c9a544" />
+                    <stop offset="100%" stop-color="#dfbe66" />
+                  </linearGradient>
+                </defs>
 
-              <!-- Grouped Bars: Dark Green for Total, Gold for Submitted -->
-              @for (b of barItems; track b.name) {
-                <!-- Total Bar (Dark Green) -->
-                <rect
-                  [attr.x]="b.x1"
-                  [attr.y]="b.y1"
-                  width="13"
-                  [attr.height]="b.h1"
-                  rx="3"
-                  fill="#17483a"
-                >
-                  <title>{{ b.name }}: {{ b.total }} Total Records</title>
-                </rect>
+                <!-- Y-Axis Grid Lines & Ticks -->
+                @for (tick of aptYAxisTicks(); track tick.y) {
+                  <line x1="32" [attr.y1]="tick.y" x2="525" [attr.y2]="tick.y" stroke="#f1f5f9" stroke-width="1" />
+                  <text x="26" [attr.y]="tick.y + 4" text-anchor="end" class="chart-tick-text">{{ tick.val }}</text>
+                }
 
-                <!-- Submitted Bar (Gold) -->
-                <rect
-                  [attr.x]="b.x2"
-                  [attr.y]="b.y2"
-                  width="13"
-                  [attr.height]="b.h2"
-                  rx="3"
-                  fill="#c9a544"
-                >
-                  <title>{{ b.name }}: {{ b.submitted }} Submitted</title>
-                </rect>
+                <!-- Bars for all 12 Months -->
+                @for (m of monthlyAppointments(); track m.monthIndex) {
+                  <rect
+                    [attr.x]="m.x"
+                    [attr.y]="m.y"
+                    [attr.width]="m.width"
+                    [attr.height]="m.height"
+                    rx="3"
+                    class="apt-bar-rect"
+                    [class.is-hovered]="hoveredMonth()?.monthIndex === m.monthIndex"
+                    [attr.fill]="hoveredMonth()?.monthIndex === m.monthIndex ? 'url(#aptBarHoverGrad)' : (m.count > 0 ? 'url(#aptBarGrad)' : '#e2e8f0')"
+                    (mouseenter)="hoveredMonth.set(m)"
+                    (mouseleave)="hoveredMonth.set(null)"
+                  >
+                    <title>{{ m.fullName }} {{ selectedYear() }}: {{ m.count }} appointment(s)</title>
+                  </rect>
 
-                <!-- Month Label -->
-                <text [attr.x]="b.x1 + 14" y="174" text-anchor="middle" class="chart-x-text">{{ b.name }}</text>
+                  <!-- Count label on top of bar if count > 0 -->
+                  @if (m.count > 0) {
+                    <text
+                      [attr.x]="m.x + m.width / 2"
+                      [attr.y]="m.y - 4"
+                      text-anchor="middle"
+                      class="apt-bar-val"
+                      [class.active]="hoveredMonth()?.monthIndex === m.monthIndex"
+                    >
+                      {{ m.count }}
+                    </text>
+                  }
+
+                  <!-- Month label -->
+                  <text
+                    [attr.x]="m.x + m.width / 2"
+                    y="180"
+                    text-anchor="middle"
+                    class="chart-x-text apt-month-label"
+                    [class.active]="hoveredMonth()?.monthIndex === m.monthIndex"
+                  >
+                    {{ m.monthName }}
+                  </text>
+                }
+              </svg>
+
+              <!-- Floating Tooltip Box when hovered -->
+              @if (hoveredMonth(); as hm) {
+                <div class="apt-tooltip" [style.left.%]="tooltipLeft(hm.x)">
+                  <span class="tt-month">{{ hm.fullName }} {{ selectedYear() }}</span>
+                  <span class="tt-count"><b>{{ hm.count }}</b> appointment{{ hm.count === 1 ? '' : 's' }}</span>
+                </div>
               }
-            </svg>
+            }
           </div>
         </article>
 
@@ -842,18 +900,140 @@ const TYPE_COLORS = [
     /* 3. Grid Bottom */
     .grid-bottom {
       display: grid;
-      grid-template-columns: 1fr 1.15fr 1.15fr;
+      grid-template-columns: 1fr 1.45fr 1.1fr;
       gap: 18px;
     }
 
-    .bar-wrap {
-      height: 190px;
+    .card-appointments {
+      position: relative;
     }
 
-    .svg-bar-chart {
+    .panel-sub {
+      margin: 3px 0 0;
+      font-size: 11.5px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .ph-title-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .apt-year-badge {
+      font-size: 11.5px;
+      color: var(--navy);
+      background: var(--navy-surface);
+      border: 1px solid var(--border-strong);
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+    }
+
+    .apt-year-badge b {
+      color: var(--navy-deep);
+    }
+
+    .apt-chart-wrap {
+      height: 195px;
+      position: relative;
+    }
+
+    .svg-apt-chart {
       width: 100%;
       height: 100%;
       overflow: visible;
+    }
+
+    .apt-bar-rect {
+      cursor: pointer;
+      transition: fill 0.15s ease, opacity 0.15s ease;
+    }
+
+    .apt-bar-rect:hover {
+      opacity: 0.95;
+    }
+
+    .apt-bar-val {
+      font-size: 9.5px;
+      font-weight: 700;
+      fill: #17483a;
+      pointer-events: none;
+    }
+
+    .apt-bar-val.active {
+      fill: #b38e30;
+    }
+
+    .apt-month-label {
+      transition: fill 0.15s ease;
+    }
+
+    .apt-month-label.active {
+      fill: #17483a;
+      font-weight: 700;
+    }
+
+    .chart-empty-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.7);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .chart-empty-overlay p {
+      margin: 0;
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 500;
+      background: #ffffff;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px dashed var(--border-strong);
+    }
+
+    .chart-state-msg {
+      height: 195px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .chart-state-msg.error {
+      color: var(--red);
+    }
+
+    .apt-tooltip {
+      position: absolute;
+      top: 10px;
+      transform: translateX(-50%);
+      background: #12332b;
+      color: #ffffff;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+      white-space: nowrap;
+    }
+
+    .tt-month {
+      font-weight: 700;
+      color: #d5ae4f;
+    }
+
+    .tt-count {
+      color: #e2e8f0;
     }
 
     /* Recent Activity */
@@ -1022,12 +1202,163 @@ const TYPE_COLORS = [
     }
   `]
 })
-export class Dashboard {
+export class Dashboard implements OnInit, OnDestroy {
   auth = inject(AuthService);
   rec = inject(RecordsService);
   private dts = inject(DocTypesService);
+  private appointmentsService = inject(AppointmentsService);
 
   timeframe: '6m' | '12m' | 'year' = '6m';
+
+  // Monthly Appointments graph state
+  appointments = signal<Appointment[]>([]);
+  aptLoading = signal(true);
+  aptError = signal('');
+  selectedYear = signal<number>(new Date().getFullYear());
+  currentCalendarYear = new Date().getFullYear();
+  hoveredMonth = signal<MonthlyAppointmentBar | null>(null);
+
+  private unsubRealtime?: () => void;
+
+  ngOnInit(): void {
+    this.loadAppointments();
+    this.unsubRealtime = this.appointmentsService.subscribeToChanges(() => {
+      this.loadAppointmentsSilent();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.unsubRealtime) {
+      this.unsubRealtime();
+    }
+  }
+
+  async loadAppointments(): Promise<void> {
+    this.aptLoading.set(true);
+    this.aptError.set('');
+    try {
+      const { rows, error } = await this.appointmentsService.all();
+      if (error) {
+        this.aptError.set(error);
+      } else {
+        this.appointments.set(rows);
+      }
+    } catch (err: unknown) {
+      this.aptError.set(err instanceof Error ? err.message : 'Failed to load appointments.');
+    } finally {
+      this.aptLoading.set(false);
+    }
+  }
+
+  async loadAppointmentsSilent(): Promise<void> {
+    try {
+      const { rows, error } = await this.appointmentsService.all();
+      if (!error && rows) {
+        this.appointments.set(rows);
+      }
+    } catch {
+      // silent live sync
+    }
+  }
+
+  availableYears = computed(() => {
+    const years = new Set<number>();
+    const current = this.currentCalendarYear;
+    years.add(current);
+    years.add(current - 1);
+    for (const a of this.appointments()) {
+      if (a.createdAt) {
+        const y = new Date(a.createdAt).getFullYear();
+        if (!isNaN(y)) years.add(y);
+      }
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  });
+
+  totalYearAppointments = computed(() => {
+    return this.monthlyAppointments().reduce((sum, m) => sum + m.count, 0);
+  });
+
+  monthlyAppointments = computed<MonthlyAppointmentBar[]>(() => {
+    const year = this.selectedYear();
+    const apts = this.appointments();
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const fullNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const counts = new Array(12).fill(0);
+    const seenIds = new Set<number>();
+
+    for (const a of apts) {
+      if (!a.id || seenIds.has(a.id)) continue;
+      seenIds.add(a.id);
+
+      if (!a.createdAt) continue;
+      const d = new Date(a.createdAt);
+      if (isNaN(d.getTime())) continue;
+
+      if (d.getFullYear() === year) {
+        const m = d.getMonth();
+        if (m >= 0 && m < 12) {
+          counts[m]++;
+        }
+      }
+    }
+
+    const maxCount = Math.max(...counts, 0);
+    const maxVal = Math.max(4, Math.ceil(maxCount * 1.25));
+
+    const startX = 38;
+    const endX = 525;
+    const innerW = endX - startX;
+    const slotW = innerW / 12;
+    const barW = 20;
+    const baseY = 165;
+    const innerH = 135;
+
+    return counts.map((count, idx) => {
+      const x = startX + idx * slotW + (slotW - barW) / 2;
+      const h = count > 0 ? Math.max(4, (count / maxVal) * innerH) : 2;
+      const y = baseY - h;
+      const pct = maxVal > 0 ? Math.round((count / maxVal) * 100) : 0;
+
+      return {
+        monthIndex: idx,
+        monthName: monthNames[idx],
+        fullName: fullNames[idx],
+        count,
+        pct,
+        x,
+        y,
+        width: barW,
+        height: h,
+      };
+    });
+  });
+
+  aptYAxisTicks = computed(() => {
+    const months = this.monthlyAppointments();
+    const maxCount = Math.max(...months.map((m) => m.count), 0);
+    const maxVal = Math.max(4, Math.ceil(maxCount * 1.25));
+    const step = maxVal / 4;
+    const ticks = [];
+    const baseY = 165;
+    const innerH = 135;
+
+    for (let i = 0; i <= 4; i++) {
+      const val = Math.round(i * step);
+      const y = baseY - (i / 4) * innerH;
+      ticks.push({ y, val });
+    }
+    return ticks;
+  });
+
+  tooltipLeft(barX: number): number {
+    return Math.min(Math.max(8, (barX / 540) * 100), 92);
+  }
 
   get firstName(): string {
     const raw = (this.auth.user?.name ?? '').trim();
@@ -1216,83 +1547,7 @@ export class Dashboard {
     });
   }
 
-  // --- Monthly Performance Bar Chart (Dark Green & Gold) ---
-  get barItems(): BarItem[] {
-    const list = this.rec.list();
-    const now = new Date();
-    const count = 4; // last 4 months (e.g. Aug, Sep, Oct, Nov)
-    const rawMonths: { name: string; total: number; submitted: number }[] = [];
 
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      const monthRecs = list.filter(r => {
-        const rd = new Date(r.dateNotarized + 'T00:00:00');
-        return rd.getFullYear() === y && rd.getMonth() === m;
-      });
-
-      rawMonths.push({
-        name: MONTH_NAMES[m].slice(0, 3),
-        total: monthRecs.length,
-        submitted: monthRecs.filter(r => r.status === 'Submitted').length
-      });
-    }
-
-    const maxVal = Math.max(4, Math.ceil(Math.max(...rawMonths.map(m => m.total), 1) * 1.25));
-    const startX = 28;
-    const innerW = 300;
-    const innerH = 140;
-    const baseY = 165;
-    const groupW = innerW / count;
-    const barW = 13;
-
-    return rawMonths.map((m, idx) => {
-      const groupCenter = startX + idx * groupW + groupW / 2;
-      const x1 = groupCenter - barW - 2;
-      const x2 = groupCenter + 2;
-      const h1 = Math.max(2, (m.total / maxVal) * innerH);
-      const h2 = Math.max(2, (m.submitted / maxVal) * innerH);
-      const y1 = baseY - h1;
-      const y2 = baseY - h2;
-      return {
-        name: m.name,
-        total: m.total,
-        submitted: m.submitted,
-        x1,
-        x2,
-        y1,
-        y2,
-        h1,
-        h2
-      };
-    });
-  }
-
-  get barYAxisTicks(): { y: number; val: number }[] {
-    const list = this.rec.list();
-    const now = new Date();
-    const rawTotals: number[] = [];
-    for (let i = 3; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      rawTotals.push(list.filter(r => {
-        const rd = new Date(r.dateNotarized + 'T00:00:00');
-        return rd.getFullYear() === y && rd.getMonth() === m;
-      }).length);
-    }
-
-    const maxVal = Math.max(4, Math.ceil(Math.max(...rawTotals, 1) * 1.25));
-    const step = maxVal / 4;
-    const ticks = [];
-    for (let i = 0; i <= 4; i++) {
-      const val = Math.round(i * step);
-      const y = 165 - (i / 4) * 140;
-      ticks.push({ y, val });
-    }
-    return ticks;
-  }
 
   // --- Recent Activity ---
   get recentActivities(): NotarizationRecord[] {
