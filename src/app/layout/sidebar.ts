@@ -154,6 +154,7 @@ export class Sidebar {
   nav = [
     { label: 'Dashboard', link: '/dashboard', icon: 'grid' },
     { label: 'Notarization Records', link: '/records', icon: 'file' },
+    { label: 'Appointments', link: '/appointments', icon: 'calendar' },
     { label: 'Reports', link: '/reports', icon: 'chart' },
     { label: 'Activity Log', link: '/activity-log', icon: 'list' },
   ];

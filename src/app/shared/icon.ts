@@ -98,6 +98,19 @@ const ICONS: Record<string, Prim[]> = {
   ],
   // Lucide 'x' — close / cancel icon
   x: [{ d: 'M18 6L6 18' }, { d: 'M6 6l12 12' }],
+  // Lucide 'clock' — appointment times
+  clock: [{ c: [12, 12, 10] }, { d: 'M12 6v6l4 2' }],
+  // Lucide 'check-circle-2' — approved / completed
+  'check-circle': [{ c: [12, 12, 10] }, { d: 'm9 12 2 2 4-4' }],
+  // Lucide 'calendar-x' — cancelled / rejected
+  'calendar-x': [
+    { d: 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z' },
+    { d: 'M16 2v4' },
+    { d: 'M8 2v4' },
+    { d: 'M3 10h18' },
+    { d: 'm10 14 4 4' },
+    { d: 'm14 14-4 4' },
+  ],
 };
 
 @Component({

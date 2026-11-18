@@ -1,0 +1,15 @@
+# NOTARIX — Netlify deployment configuration
+# Angular SPA: all routes (including /portal/**) must resolve to index.html.
+
+[build]
+  command = "npm run build"
+  publish = "dist/notarix-palasan/browser"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: direct navigation and page refresh work on every route.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

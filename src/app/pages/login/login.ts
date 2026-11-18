@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth';
 import { ActivityLogService } from '../../core/activity';
 import { UiIcon } from '../../shared/icon';
@@ -8,7 +8,7 @@ import { LogoMark } from '../../shared/logo';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, UiIcon, LogoMark],
+  imports: [FormsModule, RouterLink, UiIcon, LogoMark],
   template: `
     <div class="lgn">
       <div class="lgn-corner tl"><span class="ring"></span></div>
@@ -67,7 +67,10 @@ import { LogoMark } from '../../shared/logo';
 
           <p class="lgn-foot">Don't have an account? <b>Contact your admin.</b></p>
 
-         
+          <a class="lgn-portal" routerLink="/portal">
+            <ui-icon name="calendar" size="15" />
+            <span>Book an appointment instead — Client Portal</span>
+          </a>
         </form>
       </div>
     </div>
@@ -216,6 +219,20 @@ import { LogoMark } from '../../shared/logo';
 
       .lgn-foot { margin-top: 16px; font-size: 13.5px; color: #7c848e; }
       .lgn-foot b { color: #1f3a5f; font-weight: 700; cursor: pointer; }
+
+      .lgn-portal {
+        margin-top: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #29745e;
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(41, 116, 94, 0.45);
+        padding-bottom: 2px;
+      }
+      .lgn-portal:hover { color: #1f5d4a; }
 
       .lgn-hint {
         margin-top: 18px;
