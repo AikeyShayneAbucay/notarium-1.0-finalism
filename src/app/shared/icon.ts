@@ -100,6 +100,7 @@ const ICONS: Record<string, Prim[]> = {
   x: [{ d: 'M18 6L6 18' }, { d: 'M6 6l12 12' }],
   // Lucide 'clock' — appointment times
   clock: [{ c: [12, 12, 10] }, { d: 'M12 6v6l4 2' }],
+  mail: [{ d: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z' }, { d: 'm22 6-10 7L2 6' }],
   // Lucide 'check-circle-2' — approved / completed
   'check-circle': [{ c: [12, 12, 10] }, { d: 'm9 12 2 2 4-4' }],
   // Lucide 'calendar-x' — cancelled / rejected

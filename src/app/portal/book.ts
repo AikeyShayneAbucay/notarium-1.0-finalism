@@ -36,7 +36,7 @@ function tomorrowIso(): string {
             <span class="bk-ref-label">Reference Number</span>
             <span class="bk-ref-value">{{ ref }}</span>
           </div>
-          <p class="bk-note">Keep this reference number. You can track your appointment status on the My Appointments page.</p>
+          <p class="bk-note">Keep this reference number. An in-app notification and confirmation email have been sent to your registered Gmail address. You can track your appointment status on the My Appointments page.</p>
           <div class="bk-success-actions">
             <a class="bk-btn bk-btn-green" routerLink="/portal/appointments">View My Appointments</a>
             <button class="bk-btn bk-btn-light" type="button" (click)="reset()">Book another</button>

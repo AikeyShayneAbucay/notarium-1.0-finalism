@@ -576,7 +576,7 @@ export class AppointmentsPage implements OnInit {
 
   approve(a: Appointment): void {
     this.commit(
-      this.api.setStatus(a.id, 'Approved', a.remarks, a.referenceNo),
+      this.api.setStatus(a.id, 'Approved', a.remarks, a.referenceNo, a),
       `Appointment ${a.referenceNo} approved.`,
     );
   }
@@ -594,20 +594,21 @@ export class AppointmentsPage implements OnInit {
       return;
     }
     this.acting = true;
-    const err = await this.api.setStatus(
+    const res = await this.api.setStatus(
       this.rejectPick.id,
       'Rejected',
       this.rejectRemarks.trim(),
       this.rejectPick.referenceNo,
+      this.rejectPick,
     );
     this.acting = false;
-    if (err) {
-      this.actionError.set(err);
+    if (res.error) {
+      this.actionError.set(res.error);
       return;
     }
     const ref = this.rejectPick.referenceNo;
     this.rejectPick = null;
-    this.showToast(`Appointment ${ref} rejected.`);
+    this.showToast(res.feedback || `Appointment ${ref} rejected.`);
     await this.load();
   }
 
@@ -635,27 +636,28 @@ export class AppointmentsPage implements OnInit {
       return;
     }
     this.acting = true;
-    const err = await this.api.reschedule(
+    const res = await this.api.reschedule(
       this.reschedPick.id,
       this.reschedDate,
       this.reschedTime,
       this.reschedRemarks.trim(),
       this.reschedPick.referenceNo,
+      this.reschedPick,
     );
     this.acting = false;
-    if (err) {
-      this.actionError.set(err);
+    if (res.error) {
+      this.actionError.set(res.error);
       return;
     }
     const ref = this.reschedPick.referenceNo;
     this.reschedPick = null;
-    this.showToast(`Appointment ${ref} rescheduled.`);
+    this.showToast(res.feedback || `Appointment ${ref} rescheduled.`);
     await this.load();
   }
 
   pickComplete(a: Appointment): void {
     this.commit(
-      this.api.setStatus(a.id, 'Completed', a.remarks, a.referenceNo),
+      this.api.setStatus(a.id, 'Completed', a.remarks, a.referenceNo, a),
       `Appointment ${a.referenceNo} completed.`,
     );
   }
@@ -669,31 +671,32 @@ export class AppointmentsPage implements OnInit {
   async confirmCancel(): Promise<void> {
     if (!this.cancelPick) return;
     this.acting = true;
-    const err = await this.api.setStatus(
+    const res = await this.api.setStatus(
       this.cancelPick.id,
       'Cancelled',
       this.cancelRemarks.trim(),
       this.cancelPick.referenceNo,
+      this.cancelPick,
     );
     this.acting = false;
-    if (err) {
-      this.actionError.set(err);
+    if (res.error) {
+      this.actionError.set(res.error);
       return;
     }
     const ref = this.cancelPick.referenceNo;
     this.cancelPick = null;
-    this.showToast(`Appointment ${ref} cancelled.`);
+    this.showToast(res.feedback || `Appointment ${ref} cancelled.`);
     await this.load();
   }
 
   /** One-shot action with toast + refresh (approve / complete). */
-  private commit(p: Promise<string | null>, msg: string): void {
-    p.then(async (err) => {
-      if (err) {
-        this.pageError.set(err);
+  private commit(p: Promise<{ error: string | null; feedback: string }>, defaultMsg: string): void {
+    p.then(async (res) => {
+      if (res.error) {
+        this.pageError.set(res.error);
         return;
       }
-      this.showToast(msg);
+      this.showToast(res.feedback || defaultMsg);
       await this.load();
     });
   }

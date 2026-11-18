@@ -13,6 +13,7 @@ import { PortalLayout } from './portal/portal-layout';
 import { PortalWelcome } from './portal/welcome';
 import { PortalBook } from './portal/book';
 import { PortalMyAppointments } from './portal/my-appointments';
+import { PortalNotifications } from './portal/notifications';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -43,6 +44,12 @@ export const routes: Routes = [
         component: PortalMyAppointments,
         canActivate: [clientGuard],
         data: { title: 'My Appointments' },
+      },
+      {
+        path: 'notifications',
+        component: PortalNotifications,
+        canActivate: [clientGuard],
+        data: { title: 'Notifications' },
       },
     ],
   },

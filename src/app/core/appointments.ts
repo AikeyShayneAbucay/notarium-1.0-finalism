@@ -3,6 +3,7 @@ import { SupabaseService } from './supabase';
 import { ClientAuthService } from './client-auth';
 import { AuthService } from './auth';
 import { ActivityLogService } from './activity';
+import { NotificationsService, NotificationType } from './notifications';
 
 export type AppointmentStatus =
   | 'Pending'
@@ -80,9 +81,26 @@ export class AppointmentsService {
   private clientAuth = inject(ClientAuthService);
   private staffAuth = inject(AuthService);
   private activity = inject(ActivityLogService);
+  private notifications = inject(NotificationsService);
 
   /** True when the Supabase session is linked to an Admin/Secretary profile. */
   staffSessionReady = false;
+
+  /**
+   * Fetch single appointment by id.
+   */
+  async getById(id: number): Promise<Appointment | null> {
+    try {
+      const { data } = await this.sb.client
+        .from('appointments')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      return data ? fromRow(data as AppointmentRow) : null;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Subscribes to Supabase Realtime changes on public.appointments.
@@ -242,7 +260,26 @@ export class AppointmentsService {
         p_purpose: input.purpose,
       });
       if (error) return { appointment: null, error: this.friendly(error.message) };
-      return { appointment: fromRow(data as AppointmentRow), error: null };
+      const appt = fromRow(data as AppointmentRow);
+
+      // Automatic In-App Notification & Transactional Email
+      this.notifications.dispatchNotificationAndEmail({
+        eventType: 'appointment_submitted',
+        userId: appt.userId,
+        clientEmail: appt.clientEmail,
+        clientName: appt.clientName,
+        referenceNo: appt.referenceNo,
+        documentType: appt.documentType,
+        status: 'Pending',
+        appointmentDate: appt.appointmentDate,
+        appointmentTime: appt.appointmentTime,
+        uniqueEventKey: `apt_submitted_${appt.referenceNo}`,
+        notificationTitle: 'Appointment Submitted',
+        notificationMessage: `Your appointment request for ${appt.documentType} on ${appt.appointmentDate} at ${appt.appointmentTime} has been submitted (Ref: ${appt.referenceNo}).`,
+        appointmentId: appt.id,
+      }).catch(() => {});
+
+      return { appointment: appt, error: null };
     } catch (err: unknown) {
       return { appointment: null, error: err instanceof Error ? err.message : 'Failed to create appointment.' };
     }
@@ -264,14 +301,18 @@ export class AppointmentsService {
   /**
    * Staff status change (approve / reject / complete / cancel).
    * Tries direct update, falls back to secure staff RPC.
+   * Dispatches in-app notification and email to client, and returns status feedback.
    */
   async setStatus(
     id: number,
     status: AppointmentStatus,
     remarks: string,
     ref: string,
-  ): Promise<string | null> {
+    existing?: Partial<Appointment> | null,
+  ): Promise<{ error: string | null; feedback: string }> {
     const staff = this.staffAuth.user;
+    let updateSuccess = false;
+    let errMsg: string | null = null;
 
     // Attempt 1: Direct update
     const { error } = await this.sb.client
@@ -280,12 +321,9 @@ export class AppointmentsService {
       .eq('id', id);
 
     if (!error) {
-      this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
-      return null;
-    }
-
-    // Attempt 2: Secure staff RPC fallback
-    if (staff) {
+      updateSuccess = true;
+    } else if (staff) {
+      // Attempt 2: Secure staff RPC fallback
       const { error: rpcError } = await this.sb.client.rpc('staff_update_appointment_status', {
         p_email: staff.email,
         p_password: staff.password,
@@ -295,18 +333,86 @@ export class AppointmentsService {
       });
 
       if (!rpcError) {
-        this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
-        return null;
+        updateSuccess = true;
+      } else {
+        errMsg = this.friendly(rpcError.message);
       }
-      return this.friendly(rpcError.message);
+    } else {
+      errMsg = this.friendly(error.message);
     }
 
-    return this.friendly(error.message);
+    if (!updateSuccess) {
+      return { error: errMsg || 'Failed to update status.', feedback: '' };
+    }
+
+    this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
+
+    // Lookup client details for notification if not passed in
+    let appt = existing;
+    if (!appt || !appt.userId) {
+      appt = await this.getById(id);
+    }
+
+    let feedback = `Appointment ${ref} marked ${status}.`;
+
+    if (appt && appt.userId) {
+      const eventTypeMap: Record<AppointmentStatus, NotificationType> = {
+        Pending: 'appointment_submitted',
+        Approved: 'appointment_approved',
+        Rejected: 'appointment_rejected',
+        Rescheduled: 'appointment_rescheduled',
+        Completed: 'appointment_completed',
+        Cancelled: 'appointment_cancelled',
+      };
+
+      const eventType = eventTypeMap[status] || 'appointment_approved';
+      let title = `Appointment ${status}`;
+      let msg = `Your appointment ${ref} for ${appt.documentType || 'Notarial Service'} has been ${status.toLowerCase()}.`;
+
+      if (status === 'Approved') {
+        msg = `Your appointment ${ref} for ${appt.documentType || 'Notarial Service'} on ${appt.appointmentDate || ''} at ${appt.appointmentTime || ''} has been approved.`;
+      } else if (status === 'Rejected') {
+        msg = `Your appointment ${ref} has been rejected.${remarks ? ' Reason: ' + remarks : ''}`;
+      } else if (status === 'Completed') {
+        msg = `Your appointment ${ref} has been completed. Thank you for choosing Palasan Law Office.`;
+      } else if (status === 'Cancelled') {
+        msg = `Your appointment ${ref} has been cancelled.${remarks ? ' Remarks: ' + remarks : ''}`;
+      }
+
+      const emailRes = await this.notifications.dispatchNotificationAndEmail({
+        eventType,
+        userId: appt.userId,
+        clientEmail: appt.clientEmail || '',
+        clientName: appt.clientName || 'Valued Client',
+        referenceNo: ref,
+        documentType: appt.documentType || 'Notarial Service',
+        status,
+        appointmentDate: appt.appointmentDate,
+        appointmentTime: appt.appointmentTime,
+        remarks: remarks || undefined,
+        uniqueEventKey: `apt_${status.toLowerCase()}_${ref}_${Date.now()}`,
+        notificationTitle: title,
+        notificationMessage: msg,
+        appointmentId: id,
+      });
+
+      feedback += ' In-app notice sent.';
+      if (emailRes.emailStatus === 'accepted') {
+        feedback += ' Email accepted by provider.';
+      } else if (emailRes.emailStatus === 'pending') {
+        feedback += ' Email queued in database.';
+      } else if (emailRes.emailStatus === 'failed') {
+        feedback += ` (Email delivery: ${emailRes.error || 'pending'})`;
+      }
+    }
+
+    return { error: null, feedback };
   }
 
   /**
    * Staff reschedule.
    * Tries direct update, falls back to secure staff RPC.
+   * Dispatches in-app notification and email to client, and returns status feedback.
    */
   async reschedule(
     id: number,
@@ -314,8 +420,11 @@ export class AppointmentsService {
     time: string,
     remarks: string,
     ref: string,
-  ): Promise<string | null> {
+    existing?: Partial<Appointment> | null,
+  ): Promise<{ error: string | null; feedback: string }> {
     const staff = this.staffAuth.user;
+    let updateSuccess = false;
+    let errMsg: string | null = null;
 
     // Attempt 1: Direct update
     const { error } = await this.sb.client
@@ -330,12 +439,9 @@ export class AppointmentsService {
       .eq('id', id);
 
     if (!error) {
-      this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
-      return null;
-    }
-
-    // Attempt 2: Secure staff RPC fallback
-    if (staff) {
+      updateSuccess = true;
+    } else if (staff) {
+      // Attempt 2: Secure staff RPC fallback
       const { error: rpcError } = await this.sb.client.rpc('staff_reschedule_appointment', {
         p_email: staff.email,
         p_password: staff.password,
@@ -346,13 +452,60 @@ export class AppointmentsService {
       });
 
       if (!rpcError) {
-        this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
-        return null;
+        updateSuccess = true;
+      } else {
+        errMsg = this.friendly(rpcError.message);
       }
-      return this.friendly(rpcError.message);
+    } else {
+      errMsg = this.friendly(error.message);
     }
 
-    return this.friendly(error.message);
+    if (!updateSuccess) {
+      return { error: errMsg || 'Failed to reschedule appointment.', feedback: '' };
+    }
+
+    this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
+
+    // Lookup client details for notification if not passed in
+    let appt = existing;
+    if (!appt || !appt.userId) {
+      appt = await this.getById(id);
+    }
+
+    let feedback = `Appointment ${ref} rescheduled to ${date} ${time}.`;
+
+    if (appt && appt.userId) {
+      const emailRes = await this.notifications.dispatchNotificationAndEmail({
+        eventType: 'appointment_rescheduled',
+        userId: appt.userId,
+        clientEmail: appt.clientEmail || '',
+        clientName: appt.clientName || 'Valued Client',
+        referenceNo: ref,
+        documentType: appt.documentType || 'Notarial Service',
+        status: 'Rescheduled',
+        previousStatus: appt.status || 'Pending',
+        appointmentDate: date,
+        appointmentTime: time,
+        previousDate: appt.appointmentDate,
+        previousTime: appt.appointmentTime,
+        remarks: remarks || undefined,
+        uniqueEventKey: `apt_rescheduled_${ref}_${Date.now()}`,
+        notificationTitle: 'Appointment Rescheduled',
+        notificationMessage: `Your appointment ${ref} has been rescheduled to ${date} at ${time}.${remarks ? ' Note: ' + remarks : ''}`,
+        appointmentId: id,
+      });
+
+      feedback += ' In-app notice sent.';
+      if (emailRes.emailStatus === 'accepted') {
+        feedback += ' Email accepted by provider.';
+      } else if (emailRes.emailStatus === 'pending') {
+        feedback += ' Email queued in database.';
+      } else if (emailRes.emailStatus === 'failed') {
+        feedback += ` (Email delivery: ${emailRes.error || 'pending'})`;
+      }
+    }
+
+    return { error: null, feedback };
   }
 
   /** Turns raw Postgres errors into client-friendly messages. */
