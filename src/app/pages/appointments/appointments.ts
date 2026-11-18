@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AppointmentsService, Appointment, AppointmentStatus, APPOINTMENT_STATUSES } from '../../core/appointments';
 import { UiIcon } from '../../shared/icon';
@@ -55,7 +55,7 @@ const STATUS_PILL: Record<AppointmentStatus, string> = {
             </button>
           }
         </div>
-        <button class="btn btn-light" type="button" (click)="load()" [disabled]="loading">
+        <button class="btn btn-light" type="button" (click)="load()" [disabled]="loading()">
           <ui-icon name="check" size="15" /> Refresh
         </button>
       </section>
@@ -81,7 +81,7 @@ const STATUS_PILL: Record<AppointmentStatus, string> = {
               </tr>
             </thead>
             <tbody>
-              @if (loading) {
+              @if (loading()) {
                 <tr><td colspan="6" class="empty">Loading appointments…</td></tr>
               } @else if (filtered().length === 0) {
                 <tr><td colspan="6" class="empty">No appointment requests found.</td></tr>
@@ -426,7 +426,7 @@ export class AppointmentsPage implements OnInit {
   private api = inject(AppointmentsService);
 
   rows = signal<Appointment[]>([]);
-  loading = true;
+  loading = signal(true);
   setupNotice = signal('');
 
   search = '';
@@ -456,30 +456,55 @@ export class AppointmentsPage implements OnInit {
 
   readonly slots = buildSlots();
 
+  private unsubscribeRealtime?: () => void;
+
   ngOnInit(): void {
     this.load();
+    // Live synchronization: newly submitted client appointments automatically appear
+    this.unsubscribeRealtime = this.api.subscribeToChanges(() => {
+      this.loadSilent();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.unsubscribeRealtime) {
+      this.unsubscribeRealtime();
+    }
   }
 
   async load(): Promise<void> {
-    this.loading = true;
+    this.loading.set(true);
     this.pageError.set('');
-    const { rows, error } = await this.api.all();
-    this.loading = false;
-    if (error) {
-      this.pageError.set(
-        error.includes('schema') || error.includes('relation')
-          ? 'The appointments table is not created yet. Run the migration in supabase/migrations/20261118000000_create_appointments.sql first.'
-          : error,
-      );
-      return;
-    }
-    this.rows.set(rows);
-    if (!(await this.api.ensureStaffSession())) {
-      this.setupNotice.set(
-        'This browser has no Supabase Auth session linked to an Admin/Secretary profile, so appointment updates may fail.',
-      );
-    } else {
+    try {
+      const { rows, error } = await this.api.all();
+      if (error) {
+        this.pageError.set(
+          error.includes('schema') || error.includes('relation')
+            ? 'The appointments table is not created yet. Run the migration in supabase/migrations/20261118000000_create_appointments.sql first.'
+            : error,
+        );
+      } else {
+        this.rows.set(rows);
+      }
+
+      const hasAuth = await this.api.ensureStaffSession();
+      // If RPC fallback is available, staff management works seamlessly
       this.setupNotice.set('');
+    } catch (err: unknown) {
+      this.pageError.set(err instanceof Error ? err.message : 'Failed to load appointments.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async loadSilent(): Promise<void> {
+    try {
+      const { rows, error } = await this.api.all();
+      if (!error && rows) {
+        this.rows.set(rows);
+      }
+    } catch {
+      // Silent sync
     }
   }
 

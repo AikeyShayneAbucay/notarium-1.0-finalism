@@ -411,22 +411,27 @@ export class PortalBook implements OnInit {
     }
 
     this.busy = true;
-    const { appointment, error } = await this.api.create({
-      clientName: name,
-      contactNumber: contact,
-      documentType: this.documentType,
-      appointmentDate: this.appointmentDate,
-      appointmentTime: this.appointmentTime,
-      purpose: this.purpose.trim(),
-    });
-    this.busy = false;
+    try {
+      const { appointment, error } = await this.api.create({
+        clientName: name,
+        contactNumber: contact,
+        documentType: this.documentType,
+        appointmentDate: this.appointmentDate,
+        appointmentTime: this.appointmentTime,
+        purpose: this.purpose.trim(),
+      });
 
-    if (error || !appointment) {
-      this.error.set(error ?? 'Unable to submit the appointment. Please try again.');
-      return;
+      if (error || !appointment) {
+        this.error.set(error ?? 'Unable to submit the appointment. Please try again.');
+        return;
+      }
+      this.done.set(appointment.referenceNo);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: unknown) {
+      this.error.set(err instanceof Error ? err.message : 'Unable to submit appointment. Please try again.');
+    } finally {
+      this.busy = false;
     }
-    this.done.set(appointment.referenceNo);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   reset(): void {

@@ -85,70 +85,145 @@ export class AppointmentsService {
   staffSessionReady = false;
 
   /**
-   * The dashboard runs on the localStorage staff session while Supabase Auth
-   * needs its own session for RLS. Mirrors AuthService.login by signing in to
-   * Supabase with the same credentials in the background.
+   * Subscribes to Supabase Realtime changes on public.appointments.
+   * Returns an unsubscribe function.
+   */
+  subscribeToChanges(callback: () => void): () => void {
+    const channelId = 'apt-channel-' + Math.random().toString(36).substring(2, 9);
+    const channel = this.sb.client
+      .channel(channelId)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        () => {
+          callback();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      this.sb.client.removeChannel(channel);
+    };
+  }
+
+  /**
+   * Attempts to establish a Supabase Auth session for the local staff member.
    */
   async ensureStaffSession(): Promise<boolean> {
     const staff = this.staffAuth.user;
     if (!staff) return false;
     if (this.staffSessionReady) return true;
 
-    const { data } = await this.sb.client.auth.getSession();
-    const session = data.session;
-    if (session?.user) {
-      // Any authenticated session is enough for staff to manage appointments
-      // once the profiles.auth_user_id link exists; try to verify.
-      const { data: prof } = await this.sb.client
-        .from('profiles')
-        .select('id, role')
-        .eq('auth_user_id', session.user.id)
-        .maybeSingle();
-      if (prof && (prof.role === 'admin' || prof.role === 'staff')) {
+    try {
+      const { data } = await this.sb.client.auth.getSession();
+      const session = data.session;
+      if (session?.user) {
+        const { data: prof } = await this.sb.client
+          .from('profiles')
+          .select('id, role')
+          .eq('auth_user_id', session.user.id)
+          .maybeSingle();
+        if (prof && (prof.role === 'admin' || prof.role === 'staff')) {
+          this.staffSessionReady = true;
+          return true;
+        }
+      }
+
+      const { error } = await this.sb.client.auth.signInWithPassword({
+        email: staff.email,
+        password: staff.password,
+      });
+      if (!error) {
         this.staffSessionReady = true;
         return true;
       }
-    }
-
-    // Retry Supabase sign-in with the local staff credentials
-    const { error } = await this.sb.client.auth.signInWithPassword({
-      email: staff.email,
-      password: staff.password,
-    });
-    if (!error) {
-      this.staffSessionReady = true;
-      return true;
+    } catch {
+      // Fallback RPC will handle queries if Supabase Auth is unlinked
     }
     return false;
   }
 
-  /** All appointments (staff view). Returns rows + optional error message. */
+  /**
+   * All appointments (staff view for Admin and Secretary).
+   * Tries direct query via RLS first, and seamlessly falls back to secure staff RPC.
+   */
   async all(): Promise<{ rows: Appointment[]; error: string | null }> {
-    const ready = await this.ensureStaffSession();
-    const { data, error } = await this.sb.client
-      .from('appointments')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) {
-      return { rows: [], error: error.message };
+    const staff = this.staffAuth.user;
+    if (!staff) return { rows: [], error: 'Staff session required.' };
+
+    try {
+      // 1. Try direct Supabase query with staff session
+      await this.ensureStaffSession();
+      const { data, error } = await this.sb.client
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        return { rows: data.map((r) => fromRow(r as AppointmentRow)), error: null };
+      }
+
+      // 2. Dual fallback: invoke secure staff RPC
+      const { data: rpcData, error: rpcError } = await this.sb.client.rpc('staff_get_appointments', {
+        p_email: staff.email,
+        p_password: staff.password,
+      });
+
+      if (!rpcError && rpcData) {
+        return { rows: (rpcData as AppointmentRow[]).map(fromRow), error: null };
+      }
+
+      // If direct query succeeded but had 0 rows
+      if (!error) {
+        return { rows: (data ?? []).map((r) => fromRow(r as AppointmentRow)), error: null };
+      }
+
+      return { rows: [], error: this.friendly(error.message) };
+    } catch (err: unknown) {
+      return { rows: [], error: err instanceof Error ? err.message : 'Failed to fetch appointments.' };
     }
-    return { rows: (data ?? []).map((r) => fromRow(r as AppointmentRow)), error: null };
   }
 
-  /** The signed-in client's own appointments. */
+  /**
+   * The signed-in client's own appointments.
+   * Awaits session readiness and falls back to getSession() to eliminate race conditions.
+   */
   async mine(): Promise<{ rows: Appointment[]; error: string | null }> {
-    const acc = this.clientAuth.account();
-    if (!acc) return { rows: [], error: 'Not signed in.' };
-    const { data, error } = await this.sb.client
-      .from('appointments')
-      .select('*')
-      .eq('user_id', acc.id)
-      .order('created_at', { ascending: false });
-    if (error) return { rows: [], error: error.message };
-    return { rows: (data ?? []).map((r) => fromRow(r as AppointmentRow)), error: null };
+    try {
+      await this.clientAuth.ready();
+      let acc = this.clientAuth.account();
+
+      if (!acc) {
+        const { data: { session } } = await this.sb.client.auth.getSession();
+        if (session?.user) {
+          const email = session.user.email ?? '';
+          const meta = (session.user.user_metadata ?? {}) as Record<string, unknown>;
+          const name =
+            (typeof meta['full_name'] === 'string' && meta['full_name']) ||
+            (typeof meta['name'] === 'string' && meta['name']) ||
+            email.split('@')[0];
+          acc = { id: session.user.id, email, name, avatarUrl: '' };
+        }
+      }
+
+      if (!acc) {
+        return { rows: [], error: 'Please sign in to view your appointments.' };
+      }
+
+      const { data, error } = await this.sb.client
+        .from('appointments')
+        .select('*')
+        .eq('user_id', acc.id)
+        .order('created_at', { ascending: false });
+
+      if (error) return { rows: [], error: this.friendly(error.message) };
+      return { rows: (data ?? []).map((r) => fromRow(r as AppointmentRow)), error: null };
+    } catch (err: unknown) {
+      return { rows: [], error: err instanceof Error ? err.message : 'Failed to load appointments.' };
+    }
   }
 
-  /** Client booking via RPC — returns the created appointment or an error message. */
+  /** Client booking via RPC — returns created appointment or error message. */
   async create(input: {
     clientName: string;
     contactNumber: string;
@@ -157,44 +232,82 @@ export class AppointmentsService {
     appointmentTime: string;
     purpose: string;
   }): Promise<{ appointment: Appointment | null; error: string | null }> {
-    const { data, error } = await this.sb.client.rpc('create_appointment', {
-      p_client_name: input.clientName,
-      p_contact_number: input.contactNumber,
-      p_document_type: input.documentType,
-      p_appointment_date: input.appointmentDate,
-      p_appointment_time: input.appointmentTime,
-      p_purpose: input.purpose,
-    });
-    if (error) return { appointment: null, error: this.friendly(error.message) };
-    return { appointment: fromRow(data as AppointmentRow), error: null };
+    try {
+      const { data, error } = await this.sb.client.rpc('create_appointment', {
+        p_client_name: input.clientName,
+        p_contact_number: input.contactNumber,
+        p_document_type: input.documentType,
+        p_appointment_date: input.appointmentDate,
+        p_appointment_time: input.appointmentTime,
+        p_purpose: input.purpose,
+      });
+      if (error) return { appointment: null, error: this.friendly(error.message) };
+      return { appointment: fromRow(data as AppointmentRow), error: null };
+    } catch (err: unknown) {
+      return { appointment: null, error: err instanceof Error ? err.message : 'Failed to create appointment.' };
+    }
   }
 
   /** Client self-cancel via RPC. */
   async cancel(id: number, reason: string): Promise<string | null> {
-    const { error } = await this.sb.client.rpc('cancel_my_appointment', {
-      p_appointment_id: id,
-      p_reason: reason,
-    });
-    return error ? this.friendly(error.message) : null;
+    try {
+      const { error } = await this.sb.client.rpc('cancel_my_appointment', {
+        p_appointment_id: id,
+        p_reason: reason,
+      });
+      return error ? this.friendly(error.message) : null;
+    } catch (err: unknown) {
+      return err instanceof Error ? err.message : 'Failed to cancel appointment.';
+    }
   }
 
-  /** Staff status change (approve / reject / complete / cancel). */
+  /**
+   * Staff status change (approve / reject / complete / cancel).
+   * Tries direct update, falls back to secure staff RPC.
+   */
   async setStatus(
     id: number,
     status: AppointmentStatus,
     remarks: string,
     ref: string,
   ): Promise<string | null> {
+    const staff = this.staffAuth.user;
+
+    // Attempt 1: Direct update
     const { error } = await this.sb.client
       .from('appointments')
       .update({ status, remarks: remarks || null, updated_at: new Date().toISOString() })
       .eq('id', id);
-    if (error) return this.friendly(error.message);
-    this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
-    return null;
+
+    if (!error) {
+      this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
+      return null;
+    }
+
+    // Attempt 2: Secure staff RPC fallback
+    if (staff) {
+      const { error: rpcError } = await this.sb.client.rpc('staff_update_appointment_status', {
+        p_email: staff.email,
+        p_password: staff.password,
+        p_appointment_id: id,
+        p_status: status,
+        p_remarks: remarks || null,
+      });
+
+      if (!rpcError) {
+        this.activity.log(`Appointment ${status.toLowerCase()}`, `Appointment ${ref} marked ${status}.`);
+        return null;
+      }
+      return this.friendly(rpcError.message);
+    }
+
+    return this.friendly(error.message);
   }
 
-  /** Staff reschedule. */
+  /**
+   * Staff reschedule.
+   * Tries direct update, falls back to secure staff RPC.
+   */
   async reschedule(
     id: number,
     date: string,
@@ -202,6 +315,9 @@ export class AppointmentsService {
     remarks: string,
     ref: string,
   ): Promise<string | null> {
+    const staff = this.staffAuth.user;
+
+    // Attempt 1: Direct update
     const { error } = await this.sb.client
       .from('appointments')
       .update({
@@ -212,9 +328,31 @@ export class AppointmentsService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
-    if (error) return this.friendly(error.message);
-    this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
-    return null;
+
+    if (!error) {
+      this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
+      return null;
+    }
+
+    // Attempt 2: Secure staff RPC fallback
+    if (staff) {
+      const { error: rpcError } = await this.sb.client.rpc('staff_reschedule_appointment', {
+        p_email: staff.email,
+        p_password: staff.password,
+        p_appointment_id: id,
+        p_date: date,
+        p_time: time,
+        p_remarks: remarks || null,
+      });
+
+      if (!rpcError) {
+        this.activity.log('Rescheduled an appointment', `Appointment ${ref} moved to ${date} ${time}.`);
+        return null;
+      }
+      return this.friendly(rpcError.message);
+    }
+
+    return this.friendly(error.message);
   }
 
   /** Turns raw Postgres errors into client-friendly messages. */
@@ -224,6 +362,7 @@ export class AppointmentsService {
     if (m.includes('must be a future date')) return 'Appointment date must be a future date.';
     if (m.includes('sundays')) return 'The office is closed on Sundays. Please choose another date.';
     if (m.includes('9:00 am to 4:00 pm')) return 'Bookings are only available from 9:00 AM to 4:00 PM.';
+    if (m.includes('30-minute intervals')) return 'Appointments must be booked in 30-minute intervals.';
     if (m.includes('row-level security') || m.includes('permission')) {
       return 'You do not have permission for this action.';
     }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AppointmentsService, Appointment, AppointmentStatus } from '../core/appointments';
@@ -30,7 +30,7 @@ const STATUS_META: Record<AppointmentStatus, { cls: string; icon: string }> = {
         </div>
       }
 
-      @if (loading) {
+      @if (loading()) {
         <div class="ma-empty"><span class="ma-spinner"></span> Loading your appointments…</div>
       } @else if (rows().length === 0) {
         <div class="ma-empty">
@@ -326,7 +326,7 @@ export class PortalMyAppointments implements OnInit {
   private api = inject(AppointmentsService);
 
   rows = signal<Appointment[]>([]);
-  loading = true;
+  loading = signal(true);
   error = signal('');
   expanded = signal<number | null>(null);
 
@@ -338,20 +338,48 @@ export class PortalMyAppointments implements OnInit {
   toast = signal<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+  private unsubscribeRealtime?: () => void;
+
   ngOnInit(): void {
     this.load();
+    // Live update when office staff updates status or client reschedules
+    this.unsubscribeRealtime = this.api.subscribeToChanges(() => {
+      this.loadSilent();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.unsubscribeRealtime) {
+      this.unsubscribeRealtime();
+    }
   }
 
   async load(): Promise<void> {
-    this.loading = true;
+    this.loading.set(true);
     this.error.set('');
-    const { rows, error } = await this.api.mine();
-    this.loading = false;
-    if (error) {
-      this.error.set(error);
-      return;
+    try {
+      const { rows, error } = await this.api.mine();
+      if (error) {
+        this.error.set(error);
+      } else {
+        this.rows.set(rows);
+      }
+    } catch (err: unknown) {
+      this.error.set(err instanceof Error ? err.message : 'Unable to load appointments.');
+    } finally {
+      this.loading.set(false);
     }
-    this.rows.set(rows);
+  }
+
+  async loadSilent(): Promise<void> {
+    try {
+      const { rows, error } = await this.api.mine();
+      if (!error && rows) {
+        this.rows.set(rows);
+      }
+    } catch {
+      // Background silent sync
+    }
   }
 
   toggle(a: Appointment): void {
