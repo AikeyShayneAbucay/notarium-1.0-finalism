@@ -1,5 +1,6 @@
 # NOTARIX — Netlify deployment configuration
-# Angular SPA: all routes (including /portal/**) must resolve to index.html.
+# Angular SPA: purely static client-side application.
+# Disable Netlify's automatic Angular SSR runtime plugin so it builds as a static SPA.
 
 [build]
   command = "npm run build"
@@ -7,6 +8,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NETLIFY_SKIP_PLUGINS = "@netlify/angular-runtime"
 
 # SPA fallback: direct navigation and page refresh work on every route.
 [[redirects]]
