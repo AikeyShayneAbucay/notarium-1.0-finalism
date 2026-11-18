@@ -148,6 +148,67 @@ serve(async (req: Request) => {
 
     if (!resendRes.ok) {
       const errMsg = resendData?.message || "Resend API error";
+
+      // SMART SANDBOX FALLBACK:
+      // In Resend free sandbox mode (from: onboarding@resend.dev), Resend restricts delivery
+      // to the account owner's email address. To ensure appointments for test accounts still
+      // deliver real emails for testing and evaluation, we automatically route the email
+      // to the developer's registered Gmail with an explanatory banner.
+      if (
+        errMsg.includes("You can only send testing emails to your own email address") &&
+        emailFrom.includes("onboarding@resend.dev")
+      ) {
+        const ownerEmailMatch = errMsg.match(/\(([^)]+)\)/);
+        const ownerEmail = ownerEmailMatch ? ownerEmailMatch[1] : "abucay.aikeyshayne17@gmail.com";
+
+        const sandboxNotice = `
+          <div style="background:#fef3c7; border:1px solid #fde68a; padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:12px; color:#92400e; line-height:1.4;">
+            <strong>[Resend Sandbox Test Mode]</strong> This notification was generated for client email: <code>${escapeHtml(payload.clientEmail)}</code>.<br>
+            In sandbox mode (without a verified domain), Resend routes live testing emails to your registered developer account (<code>${ownerEmail}</code>).
+          </div>
+        `;
+        const fallbackHtml = html.replace('<td class="body">', `<td class="body">${sandboxNotice}`);
+
+        const fallbackRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: emailFrom,
+            to: [ownerEmail],
+            subject: `[Test Delivery for ${payload.clientEmail}] ${subject}`,
+            html: fallbackHtml,
+          }),
+        });
+
+        const fallbackData = await fallbackRes.json();
+        if (fallbackRes.ok) {
+          const providerId = fallbackData?.id || "";
+          if (logId) {
+            await supabase
+              .from("email_logs")
+              .update({
+                email_status: "accepted",
+                provider_message_id: providerId,
+                error_message: `Delivered to sandbox test account (${ownerEmail}) for intended recipient (${payload.clientEmail}).`,
+                sent_at: new Date().toISOString(),
+              })
+              .eq("id", logId);
+          }
+          return new Response(
+            JSON.stringify({
+              success: true,
+              status: "accepted",
+              providerId,
+              message: `Email delivered to registered sandbox test email (${ownerEmail}).`,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       if (logId) {
         await supabase
           .from("email_logs")
