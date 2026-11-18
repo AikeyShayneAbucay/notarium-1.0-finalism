@@ -44,3 +44,6 @@ __screenshots__/
 Thumbs.db
 
 .zcode/
+
+supabase/.temp/
+
